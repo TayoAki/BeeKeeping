@@ -1,0 +1,8 @@
+# Agent workflow: task worktrees and evidence captures (see AGENTS.md)
+.claude/worktrees/
+.artifacts/
+
+# Local secrets
+.env
+.env.*
+!.env.example
