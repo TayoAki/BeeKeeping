@@ -180,7 +180,7 @@ How the workspace fits together:
 - Chromium is preinstalled for Playwright. For `before-and-after` in a
   container, set `AGENT_BROWSER_ARGS="--no-sandbox"`.
 - Code review runs on open-code-review, the `ocr` command. If a session
-  lacks it, install it with `npm install -g @alibaba-group/open-code-review`.
+  lacks it, install it with `npm install -g @alibaba-group/open-code-review@1.12.10`.
   With no model configured for OCR, `/ocr-review` uses delegation mode and a
   reviewer subagent does the review. Review rules and skipped paths live in
   `.opencodereview/rule.json`.

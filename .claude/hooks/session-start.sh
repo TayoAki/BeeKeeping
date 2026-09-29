@@ -11,16 +11,23 @@ fi
 cd "${CLAUDE_PROJECT_DIR:?CLAUDE_PROJECT_DIR is not set}"
 
 # Keep pnpm's upgrade notice and Next.js telemetry out of every session.
-export npm_config_update_notifier=false
+# pnpm 10 reads the npm_ name and pnpm 11 the pnpm_ one.
+export npm_config_update_notifier=false pnpm_config_update_notifier=false
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  {
-    echo "export npm_config_update_notifier=false"
-    echo "export NEXT_TELEMETRY_DISABLED=1"
-  } >>"$CLAUDE_ENV_FILE"
+  for line in \
+    "export npm_config_update_notifier=false" \
+    "export pnpm_config_update_notifier=false" \
+    "export NEXT_TELEMETRY_DISABLED=1"; do
+    grep -qxF "$line" "$CLAUDE_ENV_FILE" 2>/dev/null || echo "$line" >>"$CLAUDE_ENV_FILE"
+  done
 fi
 
 log="$(mktemp -t beekeeping-session-start.XXXXXX)"
-if ! pnpm install --frozen-lockfile >"$log" 2>&1; then
+trap 'rm -f "$log"' EXIT
+
+# A hook has no terminal, so pnpm can't ask before it rebuilds node_modules,
+# which it must do after a pnpm upgrade. Tell it not to ask.
+if ! pnpm install --frozen-lockfile --config.confirmModulesPurge=false >"$log" 2>&1; then
   echo "session-start: pnpm install --frozen-lockfile failed:" >&2
   cat "$log" >&2
   exit 1

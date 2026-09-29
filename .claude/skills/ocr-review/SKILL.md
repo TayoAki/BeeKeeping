@@ -18,7 +18,7 @@ The two upstream skills, `open-code-review` and `open-code-review-delegate`, exp
    - **Delegation mode** otherwise. OCR selects files and rules, and a reviewer subagent does the review.
    - Only configure OCR with credentials someone gave you for OCR. Never borrow other credentials from the environment, and never invent a key.
 
-Run `ocr` directly. If the shell answers `command not found`, install it with `npm install -g @alibaba-group/open-code-review` and run the command again.
+Run `ocr` directly. If the shell answers `command not found`, install it with `npm install -g @alibaba-group/open-code-review@1.12.10` and run the command again.
 
 ## One round
 
