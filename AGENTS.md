@@ -86,18 +86,20 @@ the PR is merged or closed.
 
 ### What we're building
 
-BeeKeeping is a double-entry bookkeeping app. The build plan is
-`docs/build-plan.md`. The behavior reference is the SlowBooks Pro 2026
-feature inventory in `research/slowbooks-pro-2026/`. Before starting a
-task, read the plan entry for it and the inventory subsection it links.
+BeeKeeping is a double-entry bookkeeping app. `docs/build-plan.md` says
+what we're building and why. `docs/execution-plan.md` lists every task and
+says how each skill runs on it. The behavior reference is the SlowBooks Pro
+2026 feature inventory in `research/slowbooks-pro-2026/`. Before starting a
+task, read its row in the execution plan and the inventory section its
+phase links.
 
 ### Hard invariants
 
 - Clean room. Build from the inventory. Never open, copy or paraphrase
   SlowBooks Pro source code, templates or assets, and never add them to this
   repo. Its license forbids using its code in a paid product.
-- Every posting goes through the ledger service. Journal entries always
-  balance. Posted entries are never edited or deleted; a correction is a
+- Every posting goes through the shared `postEntry` action. Journal
+  entries always balance. Posted entries are never edited or deleted; a correction is a
   reversing entry.
 - System accounts such as receivables and payables are found by their
   role, never by account number.
@@ -108,7 +110,7 @@ task, read the plan entry for it and the inventory subsection it links.
 
 ### Commands and checks
 
-There is no application code yet. Task P0.1 in the build plan adds the
+There is no application code yet. Task P0.1 in the execution plan adds the
 toolchain and replaces this paragraph with the exact commands. The plan
 expects `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
 `pnpm test:e2e` and `pnpm db:migrate`.
