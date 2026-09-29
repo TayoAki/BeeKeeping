@@ -1,6 +1,6 @@
 # BeeKeeping execution plan
 
-This is the playbook for building all of BeeKeeping with the skills in `.claude/skills/`. The [build plan](build-plan.md) says what to build and why. This file says which task comes next, which skill runs at each step of that task, how each skill runs in this repo, and what proof each task leaves behind. Work through it from the first task to the last module and the whole app gets built, about 120 pull requests in all.
+This is the playbook for building all of BeeKeeping with the skills in `.claude/skills/`. The [build plan](build-plan.md) says what to build and why. This file says which task comes next, which skill runs at each step of that task, how each skill runs in this repo, and what proof each task leaves behind. Work through it from the first task to the last module and the whole app gets built, about 130 pull requests in all.
 
 Written 2026-09-29.
 
@@ -25,6 +25,7 @@ Written 2026-09-29.
 | `research/slowbooks-pro-2026/` | How should a feature behave? | Never. It is a snapshot of SlowBooks Pro 2.18.1. |
 | `docs/build-plan.md` | What are we building, on what stack, and why? | A product or architecture decision changes. |
 | `docs/execution-plan.md` | Which task is next, and how does each skill run on it? | Scope changes, through a docs PR. |
+| `docs/agent-back-office.md` | How do the MCP server, the dashboards and the back-office agents work? | The agent design changes. |
 | `AGENTS.md` | Which rules does every session follow? | A rule changes, or P0.1 writes in the commands. |
 | `.claude/skills/` | How does each step work in detail? | You update the skills. |
 
@@ -35,7 +36,7 @@ Tasks marked "Setup" in the Needs column wait for these.
 | Step | Who | Why the skills need it |
 |---|---|---|
 | Create `main` from `claude/stoic-wright-ap21aq` and make it the default branch | You, or me once you say go | `new-feature` branches every task from `origin/main`. |
-| Install the Greptile GitHub app on the repo | You | `greploop` has no reviewer without it. |
+| Optionally, add a model API key for OCR as a GitHub secret | You | `/ocr-review` works without one, in delegation mode. With a key, the OCR GitHub Action also reviews every PR in CI. |
 | Create the Railway project with staging, PR environments, Postgres and a bucket | Me, with the Railway tools, once you say go | `before-and-after` needs staging for the "before" and a PR environment for the "after". |
 | Open accounts with Resend, Stripe with Connect, Anthropic and Sentry, and later Plaid | You | Integration tasks prove themselves in each provider's test mode. Keys go in Railway variables, never in the repo. |
 | Decide who merges | You | See [Merging](#merging). |
@@ -51,9 +52,9 @@ pick a task
   -> read the spec               task row, inventory section, lessons
   -> /code-structure             tests first, then actions and services
   -> /evidence-driven-testing    checks, then proof in .artifacts/<task>/
-  -> review your own work        /code-review, and /security-review for +sec
+  -> /security-review            for tasks tagged +sec
   -> open the PR                 /unslop on the text, /before-and-after for UI
-  -> /greploop                   until 5/5 with zero unresolved comments
+  -> /ocr-review                 until a round finds no critical, high or medium issues
   -> merge                       the tasks that needed it unlock
 ```
 
@@ -89,9 +90,8 @@ Run the checks first. Evidence adds to them and never replaces them. Then captur
 
 On a machine with a display, the skill's recorder at `scripts/evidence.py` can replace the headless path. It needs ffmpeg.
 
-### 6. Review your own work
+### 6. Check security and tidy up
 
-- Run `/code-review` on the branch, at high effort for any task that posts to the ledger or changes the schema.
 - Run `/security-review` for tasks tagged +sec, and fix what it finds before opening the PR.
 - Run `/simplify` if the diff passes 800 lines or reads badly.
 
@@ -102,13 +102,14 @@ On a machine with a display, the skill's recorder at `scripts/evidence.py` can r
 - For UI tasks, run `/before-and-after`. Capture the same page on staging and on the PR's Railway environment with the P0.8 helper, run `before-and-after before.png after.png --markdown`, and paste the table into the PR body. The upload hosts are public, which is acceptable only because the images show the demo company. A new page has no real "before", so the before is whatever staging shows at that route. In cloud sessions, set `AGENT_BROWSER_ARGS="--no-sandbox"` first.
 - Open the PR with `create_pull_request` and subscribe to its activity, so CI failures and review comments come back to the session.
 
-### 8. Loop with /greploop
+### 8. Review with /ocr-review
 
-- Start a round by posting `@greptile review` as a PR comment with `add_issue_comment`.
-- Read the review with `pull_request_read`. Fix what it asks, push, answer each thread with `add_reply_to_pull_request_comment`, resolve it with `resolve_review_thread`, and start the next round.
-- Stop at 5/5 with zero unresolved comments. The skill allows ten rounds.
-- If Greptile answers that too many files changed, switch to `/greploop-apps`, which tags `@greptile-apps` instead.
-- If a comment asks for something that breaks a hard invariant in AGENTS.md or contradicts this plan, reply with the reason and leave the code alone.
+- Run `/ocr-review` on the branch. It asks open-code-review which files to review and which rules in `.opencodereview/rule.json` apply to each, then reviews them in rounds.
+- With no model configured for OCR, it uses delegation mode. A reviewer subagent with a fresh context reviews the diff against OCR's rules, so the code gets a reviewer that didn't write it.
+- Fix every critical and high finding, and every medium one inside the task's scope. Run the checks, push, and start the next round.
+- Stop at the first round with no critical, high or medium issues, and write that result with each round's counts into the PR body.
+- After five rounds without a clean one, stop and ask.
+- If a finding asks for something that breaks a hard invariant in AGENTS.md or contradicts this plan, record why and leave the code alone.
 - Fix red CI before starting the next round.
 
 ### 9. Hand off
@@ -123,18 +124,18 @@ End with the PR link. Merge only with a go-ahead under [Merging](#merging). The 
 | `code-structure` | While writing code that adds behavior, and when a second caller needs code that already exists | Docs, CI files, styling-only changes |
 | `evidence-driven-testing` | Before every PR, and before writing the fix for a bug | Docs-only PRs, which say so in the body |
 | `before-and-after` | At PR time, for tasks with a visible change | No visible change |
-| `greploop` | On every PR, once it is open | Never |
-| `greploop-apps` | When Greptile says too many files changed | Any other time |
+| `ocr-review` | On every task once the checks pass, and after each push that answers findings | Never |
+| `open-code-review`, `open-code-review-delegate` | When `ocr-review` needs a flag or troubleshooting, since it runs them | Otherwise |
 | `unslop` | Commit messages, PR text, docs, code comments, review replies and the closing message | Text you didn't write or change |
 | `session-start-hook` | P0.2, and again when setup commands change | Otherwise |
-| `code-review` | Before every PR, at high effort for ledger and schema work | Docs-only PRs |
+| `code-review` | At gate G1, over the ledger code | Otherwise |
 | `security-review` | Tasks tagged +sec, and at every gate | Otherwise |
 | `claude-api` | Before writing code that calls Claude, in tasks tagged +ai | Otherwise |
 | `dataviz` | Before writing chart code, in tasks tagged +viz | Otherwise |
 | `simplify` | When a diff passes 800 lines or reads badly | Otherwise |
 | `run` | When you need the app running to look at a change. It finds `pnpm dev:demo` from P0.8 | Otherwise |
 
-The first seven live in `.claude/skills/`. The rest come with Claude Code in this environment.
+The first seven rows live in `.claude/skills/`. The rest come with Claude Code in this environment.
 
 ## Task types
 
@@ -156,7 +157,6 @@ A task with two types, such as DATA and UI, leaves both kinds of proof. Tags add
 - **+sec** runs `/security-review` before the PR opens.
 - **+ai** loads `claude-api` before any code that calls Claude.
 - **+viz** loads `dataviz` before any chart code.
-- **+big** expects Greptile's file limit, so plan on `/greploop-apps`.
 
 ## Writing code with code-structure
 
@@ -220,14 +220,14 @@ Build task P2.7 from docs/execution-plan.md.
 Follow AGENTS.md and the task loop in the plan. Run /new-feature first,
 read the spec, build with /code-structure, prove it with
 /evidence-driven-testing, open the PR with /unslop and /before-and-after,
-and run /greploop until Greptile gives 5/5 with no unresolved comments.
+and run /ocr-review until a round finds no critical, high or medium issues.
 Stop and ask if the scope check finds overlap or the spec leaves a money
 rule undecided. End with the PR link.
 ```
 
 ### Merging
 
-AGENTS.md says nothing merges without your instruction, so by default you merge each PR. If you'd rather not, add a line to AGENTS.md that allows merging once CI is green, Greptile gives 5/5 and the evidence is attached. I'd still keep DATA tasks, anything that posts to the ledger and anything tagged +sec for you to merge yourself.
+AGENTS.md says nothing merges without your instruction, so by default you merge each PR. If you'd rather not, add a line to AGENTS.md that allows merging once CI is green, the last review round is clean and the evidence is attached. I'd still keep DATA tasks, anything that posts to the ledger and anything tagged +sec for you to merge yourself.
 
 ## Every task, phase by phase
 
@@ -235,11 +235,11 @@ Each task is one PR of about 800 changed lines or fewer. [Task types](#task-type
 
 ### Phase 0. Foundations
 
-Phase 0 ends with an app you can sign in to, with organizations, CI, staging, and the evidence tools every later task uses. For behavior, read [§8 Platform](../research/slowbooks-pro-2026/08-platform-security-administration.md) and [§9 UI](../research/slowbooks-pro-2026/09-ui-desktop-deployment-engineering.md).
+Phase 0 ends with an app you can sign in to, with organizations, CI, staging, the evidence tools every later task uses, and the action registry that the web app, the MCP server and the API are all generated from. For behavior, read [§8 Platform](../research/slowbooks-pro-2026/08-platform-security-administration.md) and [§9 UI](../research/slowbooks-pro-2026/09-ui-desktop-deployment-engineering.md).
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
-| P0.1 | A pnpm workspace with `apps/web`, `apps/worker` and the packages from the build plan. TypeScript strict, ESLint, Prettier, Vitest, and a GitHub Actions workflow that runs typecheck, lint and tests on every PR. Write the exact commands into AGENTS.md. | INFRA +big | Each check passing in the session, and the green CI run | Setup |
+| P0.1 | A pnpm workspace with `apps/web`, `apps/worker` and the packages from the build plan. TypeScript strict, ESLint, Prettier, Vitest, and a GitHub Actions workflow that runs typecheck, lint and tests on every PR. Write the exact commands into AGENTS.md. | INFRA | Each check passing in the session, and the green CI run | Setup |
 | P0.2 | A SessionStart hook that installs dependencies, so every cloud session can run the checks. Load `session-start-hook` first. | INFRA | A new session's log showing the hook ran and `pnpm test` passed | P0.1 |
 | P0.3 | Postgres with Drizzle and migrations. A throwaway Postgres that starts inside a cloud session without Docker, a Postgres service in CI, and the Railway project with staging and PR environments. | DATA, INFRA | Migrations applied to a fresh database in the session and in CI, and the staging health check answering | P0.1 |
 | P0.4 | Sign-in with Better Auth: email and password, magic links, two-factor, organizations, invitations, the four roles and sign-out everywhere. | UI +sec | Video of signing up, creating an organization, inviting a bookkeeper, signing in as them and being refused an admin page | P0.3 |
@@ -248,12 +248,14 @@ Phase 0 ends with an app you can sign in to, with organizations, CI, staging, an
 | P0.7 | The app shell: navigation, organization switcher, a Ctrl+K palette, light and dark themes, toasts in a live region, dialogs that manage focus, and axe in CI. | UI | Screenshots in both themes and an axe report with no violations | P0.4 |
 | P0.8 | The demo company and evidence tools: a seed for a US service business that PR environments also load, `pnpm dev:demo` to run the app on it, and a Playwright helper that signs in as the demo user and writes screenshots, video and `assertions.md` to `.artifacts/<task>/`. | INFRA | The helper's own output for the sign-in flow | P0.5, P0.7 |
 | P0.9 | A PR template with the five parts of the PR body, and a demo login on staging kept in Railway variables. | DOCS | None | P0.3 |
+| P0.10 | The action registry: every action declares its name, its input and output schemas, the role it needs, whether it reads, drafts, posts or administers, and its approval category. The web adapter is generated from it. | CORE | The list of registered actions with their kinds, and a test that fails when an action leaves a field out | P0.5 |
+| P0.11 | Agent identities and API tokens: agents as principals with a role and scopes, tokens stored as hashes and limited to one organization, and an audit log that names the agent and the person who approved. | DATA +sec | Output of a token's calls attributed in the log, and a revoked token refused | P0.6, P0.10 |
 
-Run P0.1 first. Then P0.2, P0.3 and P1.1 together. Then P0.4 and P0.9. Then P0.5 and P0.7. Then P0.6 and P0.8. Gate G0 closes the phase.
+Run P0.1 first. Then P0.2, P0.3 and P1.1 together. Then P0.4 and P0.9. Then P0.5 and P0.7. Then P0.6, P0.8 and P0.10. Then P0.11. Gate G0 closes the phase.
 
 ### Phase 1. The ledger
 
-Phase 1 ends with a ledger that refuses bad entries and four reports that agree. For behavior, read [§3 General ledger](../research/slowbooks-pro-2026/03-general-ledger-banking.md) and the build plan's ledger section.
+Phase 1 ends with a ledger that refuses bad entries, four reports that agree, and an MCP server through which an AI agent can read them and propose entries for approval. For behavior, read [§3 General ledger](../research/slowbooks-pro-2026/03-general-ledger-banking.md) and the build plan's ledger section.
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
@@ -267,8 +269,10 @@ Phase 1 ends with a ledger that refuses bad entries and four reports that agree.
 | P1.8 | Chart of accounts import from CSV with a dry run. | IMPORT | Dry-run output on a fixture file, then a rerun that changes nothing | P1.2 |
 | P1.9 | Opening balances: account balances as of a start date, posted against opening balance equity. | UI | Video of entering balances and the balance sheet showing them | P1.6 |
 | P1.10 | The `storage` service and attachments on any record, with signed URLs, allowed types and a size limit. | DATA, INTEG +sec | Output showing an oversized file and a wrong type refused, and another organization's file not found | P0.5 |
+| P1.11 | The MCP server: Streamable HTTP at `/mcp`, sign-in per the MCP authorization spec, tools generated from the action registry, and read tools for accounts, the ledger and the first reports. Design in [the agentic back office](agent-back-office.md#the-mcp-server). | INTEG +ai +sec | An MCP Inspector transcript of signing in and running `run_report` on the demo company, and another organization's token refused | P0.10, P0.11, P1.6 |
+| P1.12 | Approvals and policies: approval categories, policies per organization, a dry run on every write, the approval queue, and in-chat confirmation through MCP elicitation where the AI app supports it. | CORE, UI +sec | Video of an agent's journal entry waiting in the queue, then approved and posted, and a dry run that writes nothing | P1.11, P1.3 |
 
-P1.1 starts during phase 0. Then P1.2 and P1.10 together. Then P1.3 and P1.8. Then P1.4, P1.5, P1.6 and P1.7, three at a time. Then P1.9. Gate G1 closes the phase.
+P1.1 starts during phase 0. Then P1.2 and P1.10 together. Then P1.3 and P1.8. Then P1.4, P1.5, P1.6 and P1.7, three at a time. Then P1.9 and P1.11. Then P1.12. Gate G1 closes the phase.
 
 ### Phase 2. Sales and receivables
 
@@ -292,8 +296,9 @@ Phase 2 ends with the demo company invoicing, collecting, depositing and sending
 | P2.13 | Pay online with Stripe Connect: onboarding, a link on each invoice, and recording from the webhook and the return page, in the invoice's currency. | INTEG, UI +sec | Stripe test-mode transcript of a euro invoice paid in euros, and one webhook delivered twice but recorded once | P2.7 |
 | P2.14 | Late fees as invoice lines with their own posting. | CORE, UI | Output pairs showing the fee line added, kept through an edit and reversed by a void | P2.5b |
 | P2.15 | A quick entry grid for paper backlogs. | UI | Video of ten invoices entered from the keyboard | P2.5a |
+| P2.16 | Agent pass for sales: tool descriptions and examples for this phase's actions, the "Chase overdue invoices" MCP prompt, and agent scenarios on the demo company. | CORE +ai | An MCP transcript of an AI app invoicing and chasing a demo customer, each write waiting for approval | P2.12, P1.12 |
 
-Start P2.1, P2.2 and P2.4 together. Then P2.3. Then P2.5a. Then any three of P2.5b, P2.6, P2.7, P2.10, P2.11 and P2.15. Then P2.8, P2.9, P2.12, P2.13 and P2.14 as their needs merge. Phase 3 can run beside phase 2 once P1.3 and P2.4 are in.
+Start P2.1, P2.2 and P2.4 together. Then P2.3. Then P2.5a. Then any three of P2.5b, P2.6, P2.7, P2.10, P2.11 and P2.15. Then P2.8, P2.9, P2.12, P2.13 and P2.14 as their needs merge, and P2.16 last. Phase 3 can run beside phase 2 once P1.3 and P2.4 are in.
 
 ### Phase 3. Purchases and payables
 
@@ -308,8 +313,9 @@ Phase 3 ends with the demo company entering, paying and aging its bills. For beh
 | P3.5 | Vendor credits applied to bills. | UI | Video of a credit applied to a bill | P3.2 |
 | P3.6 | Purchase orders that convert to bills. | UI | Video of a purchase order becoming a bill | P3.2 |
 | P3.7 | A/P aging tied to payables, a 1099-NEC totals report that leaves out voided payments, and cash-basis rules for purchases. | UI | Screenshot of aging beside the payables balance, and a table of 1099 totals with a voided payment left out | P3.3 |
+| P3.8 | Agent pass for purchases: tool descriptions and examples, the "Prepare Friday's bill run" prompt, and agent scenarios. | CORE +ai | An MCP transcript of an AI app drafting a bill and proposing a bill run | P3.7, P1.12 |
 
-Run P3.1 first. Then P3.2 and P3.4. Then P3.3, P3.5 and P3.6. Then P3.7.
+Run P3.1 first. Then P3.2 and P3.4. Then P3.3, P3.5 and P3.6. Then P3.7, then P3.8.
 
 ### Phase 4. Banking
 
@@ -324,12 +330,13 @@ Phase 4 ends with a month of demo bank activity imported, matched and reconciled
 | P4.5 | Bank rules that suggest a category and never post on their own. | UI | Screenshot of a suggestion, and output showing nothing posted without a click | P4.4 |
 | P4.6 | Reconciliation: statement balance, ticked cleared lines, a zero difference to finish, reconciled lines locked, a report and PDF, and an admin undo of the latest one. | UI | Video of a month reconciled to zero, and the report PDF | P4.4 |
 | P4.7 | A Plaid connection behind a feature flag. | INTEG +sec | Plaid sandbox transcript of linking, syncing and lines arriving in the review queue | P4.4 |
+| P4.8 | Agent pass for banking: tool descriptions and examples, the "Review this week's bank lines" prompt, and agent scenarios. | CORE +ai | An MCP transcript of an AI app matching and categorizing demo bank lines under the default policy | P4.6, P1.12 |
 
-Run P4.1 first. Then P4.2 and P4.3. Then P4.4. Then P4.5, P4.6 and P4.7.
+Run P4.1 first. Then P4.2 and P4.3. Then P4.4. Then P4.5, P4.6 and P4.7, and P4.8 once P4.6 is in.
 
-### Phase 5. Reports, dashboard and tax
+### Phase 5. Reports, dashboards and tax
 
-Phase 5 finishes the first release. For behavior, read [§5 Reports, dashboard, analytics and AI](../research/slowbooks-pro-2026/05-reports-dashboard-analytics-ai.md).
+Phase 5 adds the report center and the back-office dashboards. For behavior, read [§5 Reports, dashboard, analytics and AI](../research/slowbooks-pro-2026/05-reports-dashboard-analytics-ai.md), and for the dashboards, [the agentic back office](agent-back-office.md#dashboards).
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
@@ -337,38 +344,46 @@ Phase 5 finishes the first release. For behavior, read [§5 Reports, dashboard, 
 | P5.2 | Cash flow statement, indirect method. | CORE, UI | A tie-out showing the net change in cash equals the change in bank balances | P1.6 |
 | P5.3 | Sales tax liability by code, and a flow to pay it. | UI | Video of the report, the payment and the liability at zero | P2.3 |
 | P5.4 | Schedule C mapping for sole proprietors, with CSV export. | CORE | A table of accounts mapped to lines, with net profit equal to the P&L | P1.6 |
-| P5.5 | The dashboard: bank balances, money in and out, receivables, payables, overdue invoices and profit this month, with cards arranged per user. | UI +viz | Screenshots in both themes | P2.12, P3.7, P4.1 |
+| P5.5 | The dashboard framework: a dashboard is one query and one view, rendered in the web app and as a text table, with every tile linking to its report and cards arranged per user. | UI +viz | Screenshots of a sample dashboard in both themes, with its numbers equal to the report behind it | P5.1 |
 | P5.6 | Search across names, numbers and amounts. | UI | Video of finding an invoice by its amount | P2.5a, P3.2 |
 | P5.7 | Full export of an organization as CSV files plus JSON in one zip. | CORE | The zip's file list, with row counts that match the database | P1.3 |
+| P5.8 | The back-office dashboards: Today, Cash, Receivables, Payables, Profit and Tax. | UI +viz | Screenshots of each in both themes, and a tie-out of every tile to its report | P5.5, P2.12, P3.7, P4.1 |
+| P5.9 | Dashboards over MCP: `list_dashboards` and `show_dashboard`, with an interactive view in AI apps that support MCP Apps and a table everywhere else. | INTEG +viz +sec | A transcript and a screenshot of an AI app showing the Cash dashboard | P5.8, P1.11 |
 
-P5.1, P5.2, P5.4 and P5.7 can start as soon as their needs merge, long before the rest of the phase. P5.3, P5.5 and P5.6 follow theirs. Gate G2 opens the private beta.
+P5.1, P5.2, P5.4 and P5.7 can start as soon as their needs merge, long before the rest of the phase. P5.3, P5.5 and P5.6 follow theirs, then P5.8 and P5.9.
 
-### Phase 6. Moving in
+### Phase 6. Back-office agents
 
-Phase 6 lets beta users bring their books. For behavior, read [§7 Import and migration](../research/slowbooks-pro-2026/07-import-export-migration.md).
-
-| Task | What to build | Type | Proof | Needs |
-|---|---|---|---|---|
-| P6.1 | The import framework: upload, a dry run with each row's fate, apply, safe reruns and an import log. | IMPORT | A dry run and a rerun on a fixture | P1.8 |
-| P6.2 | CSV imports for customers, vendors, products, opening balances, and open invoices and bills. | IMPORT | A dry run for each file type | P6.1 |
-| P6.3 | QuickBooks Online over OAuth: chart, customers, vendors, products and open documents, then history, with an ID map for reruns. | INTEG +sec | A sandbox company imported, with counts per type, a rerun that updates instead of duplicating, and `false` flags still false | P6.1 |
-| P6.4 | Xero and Wave exports. | IMPORT | Dry runs on real export files | P6.1 |
-| P6.5 | QuickBooks Desktop IIF files. | IMPORT | A dry run on a file with quoted commas, ALL-CAPS names, sub-accounts and credit card accounts | P6.1 |
-
-Run P6.1 first, then the four importers three at a time.
-
-### Phase 7. Receipts and AI
-
-Phase 7 turns receipt photos into draft bills and expenses. For behavior, read [receipt scanning in §2](../research/slowbooks-pro-2026/02-purchasing-payables-inventory.md#receipt-scanning--engines-upload-and-intake-bucket) and [the AI parts of §5](../research/slowbooks-pro-2026/05-reports-dashboard-analytics-ai.md). AI never posts on its own, each organization turns it on, and usage has a monthly cap.
+Phase 6 turns on the built-in agents that do the routine back-office work, and ends at the private beta. For the design, read [the agentic back office](agent-back-office.md), and for receipts, [receipt scanning in §2](../research/slowbooks-pro-2026/02-purchasing-payables-inventory.md#receipt-scanning--engines-upload-and-intake-bucket). Agents post only what an organization's policy allows, each organization turns its routines on, and AI usage has a monthly cap.
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
-| P7.1 | A receipt inbox: upload photos and PDFs and link them to documents. | UI | Video of an upload linked to a bill | P1.10 |
-| P7.2 | Receipt reading with Claude: vendor, date, totals, tax and lines as structured output, reviewed by a person before it becomes a bill or expense. | INTEG, UI +ai +sec | A table of ten fixture receipts with the fields read beside the fields expected, and a video of the review step | P7.1, P3.4 |
-| P7.3 | Vendor memory: the account and category last used for each vendor. | CORE | Output pairs showing the second receipt from a vendor gets the remembered account | P7.2 |
-| P7.4 | A monthly summary of profit and loss and cash in plain language, with the figures it used beside it. | INTEG +ai | The demo month's summary with its figures | P5.1 |
+| P6.1 | The routine runner: scheduled agent runs in the worker that call Claude with each routine's tools through the action registry, under the routine's own agent identity, with run limits, a monthly spend cap, run records and a pause switch. Decide here between the Claude API tool runner and Managed Agents. | INTEG +ai +sec | The run record of a demo routine: every tool call, the approvals it raised and its cost | P1.12, P0.11 |
+| P6.2 | A receipt inbox: upload photos and PDFs and link them to documents. | UI | Video of an upload linked to a bill | P1.10 |
+| P6.3 | Receipt intake: Claude reads vendor, date, totals, tax and lines as structured output and drafts a bill or expense for approval. | INTEG, UI +ai +sec | Field accuracy on 50 fixture receipts, and a video of approving a draft | P6.1, P6.2, P3.4 |
+| P6.4 | Vendor memory: the account and category last used for each vendor. | CORE | Output pairs showing the second receipt from a vendor gets the remembered account | P6.3 |
+| P6.5 | The bank review routine. | INTEG +ai +sec | Accuracy on 200 labelled demo bank lines, and the approvals it raised | P6.1, P4.8 |
+| P6.6 | The collections routine. | INTEG +ai +sec | Twenty demo reminders drafted, and the approval flow on video | P6.1, P2.16 |
+| P6.7 | The bill run routine. | INTEG +ai +sec | A proposed run that matches due dates and cash on demo data | P6.1, P3.8 |
+| P6.8 | The month-end close routine and the Close dashboard. | INTEG, UI +ai +viz +sec | The demo month closed with its checklist complete, and the dashboard in both themes | P6.1, P4.6, P5.8 |
+| P6.9 | The weekly digest and the anomaly watch. | INTEG +ai | A digest whose numbers equal the reports, and every seeded anomaly found | P6.1, P5.8 |
+| P6.10 | The Agent activity dashboard, the agent scenario suite in nightly CI, and automatic pausing of a routine whose acceptance rate drops. | UI, CORE +ai +viz | Screenshots of the dashboard, and the nightly suite's scores | P6.5, P6.6, P6.7, P6.8 |
 
-Run P7.1 and P7.4 together. Then P7.2. Then P7.3.
+Start P6.1 and P6.2 together. Then P6.3, P6.5, P6.6 and P6.7, three at a time. Then P6.4, P6.8 and P6.9. Then P6.10. Gate G2 opens the private beta.
+
+### Phase 7. Moving in
+
+Phase 7 lets users bring their books from other software. For behavior, read [§7 Import and migration](../research/slowbooks-pro-2026/07-import-export-migration.md).
+
+| Task | What to build | Type | Proof | Needs |
+|---|---|---|---|---|
+| P7.1 | The import framework: upload, a dry run with each row's fate, apply, safe reruns and an import log. | IMPORT | A dry run and a rerun on a fixture | P1.8 |
+| P7.2 | CSV imports for customers, vendors, products, opening balances, and open invoices and bills. | IMPORT | A dry run for each file type | P7.1 |
+| P7.3 | QuickBooks Online over OAuth: chart, customers, vendors, products and open documents, then history, with an ID map for reruns. | INTEG +sec | A sandbox company imported, with counts per type, a rerun that updates instead of duplicating, and `false` flags still false | P7.1 |
+| P7.4 | Xero and Wave exports. | IMPORT | Dry runs on real export files | P7.1 |
+| P7.5 | QuickBooks Desktop IIF files. | IMPORT | A dry run on a file with quoted commas, ALL-CAPS names, sub-accounts and credit card accounts | P7.1 |
+
+Run P7.1 first, then the four importers three at a time.
 
 ### Phase 8. Launch
 
@@ -377,11 +392,11 @@ Phase 8 gets the app ready for the public.
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
 | P8.1 | Subscriptions with Stripe Billing: plans, trials, limits and the customer portal. | INTEG +sec | Stripe test-mode transcript of a trial, an upgrade and a cancellation, and a plan limit enforced | P0.4 |
-| P8.2 | Onboarding: create a company, pick a chart, import or connect a bank, invite an accountant. | UI | Video from sign-up to the first invoice | P6.2, P4.3 |
+| P8.2 | Onboarding: create a company, pick a chart, import or connect a bank, invite an accountant. | UI | Video from sign-up to the first invoice | P7.2, P4.3 |
 | P8.3 | Security review: authorization tests for every action, a dependency audit, CodeQL, secret scanning and a penetration-test checklist. | INFRA +sec | The `/security-review` report with every high finding closed, and the authorization test output | P8.1, P8.2 |
 | P8.4 | Backups: point-in-time recovery, a restore drill and a status page. | INFRA | The restore drill's log with its timings | P0.3 |
 | P8.5 | Privacy policy, terms, data retention and account deletion. | UI | Video of deleting an organization, and its data gone after the retention job runs | P0.4 |
-| P8.6 | Marketing site, help center and the generated API reference. | DOCS | None | P5.1 |
+| P8.6 | Marketing site, help center, and the generated API and MCP tool references. | DOCS | None | P5.1 |
 | P8.7 | Performance: a demo company with 10,000 invoices and a time budget for every report. | CORE | A table of report timings against their budgets | P5.1 |
 
 P8.1, P8.4, P8.5 and P8.6 can start whenever their needs merge. P8.2 and P8.7 come next and P8.3 last. Gate G3 opens the app to the public.
@@ -469,15 +484,13 @@ Behavior users will expect: [§4 Payroll and HR](../research/slowbooks-pro-2026/
 | P9H.4 | Time tracking that feeds pay runs and projects. | UI | Video of approved time flowing into a pay run | P9H.3, P9D.1 |
 | P9H.5 | Links to the partner's tax filings and employee portal. | INTEG | Sandbox transcript of a filing status shown in BeeKeeping | P9H.3 |
 
-#### 9I. Public API and MCP server
+#### 9I. Public REST API
 
-Behavior: API tokens in [§8](../research/slowbooks-pro-2026/08-platform-security-administration.md).
+The MCP server arrives in phase 1. This adds a REST door on the same registry for integrations that don't speak MCP. Behavior: [§8](../research/slowbooks-pro-2026/08-platform-security-administration.md).
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
-| P9I.1 | API tokens stored as hashes, limited to one organization and one role, and named in the audit log. | DATA +sec | Output of a token's calls attributed in the log, and a revoked token refused | P0.6 |
-| P9I.2 | A public REST API generated from the zod schemas, with rate limits and OpenAPI docs. | CORE +sec | The generated OpenAPI file, and a call over the rate limit refused | P9I.1 |
-| P9I.3 | An MCP server with read tools and write actions that wait for confirmation. | INTEG +ai +sec | Transcript of an agent reading a report and drafting an invoice that waits for approval | P9I.2 |
+| P9I.1 | A public REST API generated from the action registry, with rate limits and OpenAPI docs. | CORE +sec | The generated OpenAPI file, and a call over the rate limit refused | P0.10, P0.11 |
 
 #### 9J. Phone app
 
@@ -485,8 +498,8 @@ Cloud sessions have no simulator, so evidence comes from the Expo web build in P
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
-| P9J.1 | An Expo app with sign-in and organization switching. | UI | Screenshots of the web build | P0.4, P9I.2 |
-| P9J.2 | Receipt capture into the inbox. | UI | Video of the web build uploading a receipt | P9J.1, P7.1 |
+| P9J.1 | An Expo app with sign-in and organization switching. | UI | Screenshots of the web build | P0.4, P9I.1 |
+| P9J.2 | Receipt capture into the inbox. | UI | Video of the web build uploading a receipt | P9J.1, P6.2 |
 | P9J.3 | Approvals and the dashboard. | UI | Screenshots of the web build | P9J.1 |
 | P9J.4 | App store subscriptions through RevenueCat, sharing entitlements with Stripe on the web. | INTEG +sec | RevenueCat sandbox transcript of a purchase unlocking the same plan on the web | P9J.1, P8.1 |
 
@@ -503,7 +516,7 @@ Build these only when users ask. Each line may be more than one PR.
 
 | Task | What to build | Type | Proof | Needs |
 |---|---|---|---|---|
-| P9L.1 | MYOB, Sage 50, Zoho Books, GnuCash and hledger importers, one PR each. | IMPORT | Dry runs on real exports | P6.1 |
+| P9L.1 | MYOB, Sage 50, Zoho Books, GnuCash and hledger importers, one PR each. | IMPORT | Dry runs on real exports | P7.1 |
 | P9L.2 | PayPal and Square payment links. | INTEG +sec | Sandbox transcripts | P2.13 |
 | P9L.3 | Check printing. | UI | The check PDF | P3.3 |
 | P9L.4 | 1099-NEC and 1096 forms and e-filing. | INTEG | The forms on demo data | P3.7 |
@@ -519,11 +532,11 @@ A gate closes a phase. It runs once, after the phase's last PR merges, and nothi
 |---|---|---|---|---|
 | G0 Foundations | Phase 0 | A fresh cloud session runs every check, and the evidence helper signs in on staging | `/security-review` over phase 0 | You |
 | G1 Ledger | Phase 1 | A month of journal entries closes, and the four reports agree with each other and with the property suite | `/code-review` at high effort over the ledger code | You |
-| G2 Private beta | Phase 5 | The beta scenario, below, recorded from start to finish | `/security-review` over everything since G0, and the cross-organization test | An outside accountant, then you |
+| G2 Private beta | Phase 6 | The beta scenario, below, recorded from start to finish | `/security-review` over everything since G0, and the cross-organization test | An outside accountant, then you |
 | G3 Public launch | Phase 8 | A restore drill, the performance table and the sign-up-to-first-invoice video | The P8.3 security review | You |
 | Module gate | Each phase 9 module | The module's scenario recorded, and the property suite extended to cover its postings | `/security-review` when the module moves money or holds credentials | You |
 
-The beta scenario is a Playwright test that runs a demo month through the screens. It creates customers and vendors, sends invoices, takes payments, makes a deposit, enters and pays bills, imports a bank statement, matches it, reconciles, closes the month and opens every report. Its assertions check each tie-out: aging equals receivables, A/P aging equals payables, the trial balance totals agree, and cash flow equals the change in bank balances. `/evidence-driven-testing` records the run into `.artifacts/g2-beta/` with its report.
+The beta scenario is a Playwright test that runs a demo month through the screens. It creates customers and vendors, sends invoices, takes payments, makes a deposit, enters and pays bills, imports a bank statement, matches it, reconciles, closes the month and opens every report. The same month then runs again with the agents on: the bank review, collections, bill run and close routines do their work, and a person approves from the Today dashboard. The assertions check each tie-out: aging equals receivables, A/P aging equals payables, the trial balance totals agree, and cash flow equals the change in bank balances. `/evidence-driven-testing` records the run into `.artifacts/g2-beta/` with its report.
 
 ## When to stop and ask
 
@@ -534,11 +547,11 @@ A session stops, says what it found and asks when:
 - the task needs a package, service or paid account the stack doesn't name;
 - a migration would change or remove data already on staging;
 - `/security-review` reports a high finding the task can't fix;
-- `/greploop` reaches ten rounds without 5/5, or Greptile asks for something that breaks a hard invariant;
+- `/ocr-review` reaches five rounds without a clean one, or a finding asks for something that breaks a hard invariant;
 - a check can't run in the session.
 
 ## Keeping this plan current
 
 - Status lives in GitHub issues and pull requests, not in this file, so parallel sessions never edit it at the same time.
-- Scope changes arrive as a DOCS PR against this file and go through `/unslop` and `/greploop` like any other PR.
+- Scope changes arrive as a DOCS PR against this file and go through `/unslop` and `/ocr-review` like any other PR.
 - When a phase 9 module starts, its first PR refreshes that module's rows, because the beta will have changed what it needs.

@@ -1,0 +1,73 @@
+{
+  "exclude": [
+    ".claude/skills/**",
+    "research/**",
+    ".artifacts/**",
+    "**/LICENSE",
+    "pnpm-lock.yaml",
+    "**/drizzle/meta/**",
+    "**/*.snap"
+  ],
+  "rules": [
+    {
+      "path": "**/*.test.ts",
+      "rule": "BeeKeeping tests. Check that:\n- Each acceptance rule the change claims has a test, and the test would fail if the rule broke.\n- Tests build data with the demo company factories. No real names, keys, bank numbers or customer data.\n- Ledger tests check balances through reports or the ledger tables, never by trusting a document's own total.\n- Tests that touch several organizations assert that one organization can't read or change another's rows.\n- No test depends on the current date without fixing the clock.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "**/*.test.tsx",
+      "rule": "BeeKeeping tests. Check that:\n- Each acceptance rule the change claims has a test, and the test would fail if the rule broke.\n- Tests build data with the demo company factories. No real names, keys, bank numbers or customer data.\n- Ledger tests check balances through reports or the ledger tables, never by trusting a document's own total.\n- Tests that touch several organizations assert that one organization can't read or change another's rows.\n- No test depends on the current date without fixing the clock.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "packages/services/**",
+      "rule": "BeeKeeping services hold reusable mechanics, per the code-structure skill. Check that:\n- The code never imports the database client, Drizzle tables or the session, and never reads or writes BeeKeeping's tables. Code that does belongs in an action.\n- Every input arrives as a parameter, and every expected failure returns { ok: false, reason } instead of throwing.\n- Money is bigint minor units through the money service. No floating-point math on amounts. Rounding is half up, line by line.\n- Calls to Stripe, Plaid, Resend, Claude or storage never log keys, tokens, bank numbers or whole request bodies.\n- A new service has at least two callers, or docs/execution-plan.md lists it as a service. Otherwise the code belongs in its action.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "packages/actions/**",
+      "rule": "BeeKeeping actions decide who may do something, whether it is allowed now, what it means in the ledger and what the user sees. Check that:\n- Each action checks the caller's role and takes the organization from the action context, never from input.\n- Postings go through the shared postEntry action only. Nothing inserts into journal tables directly, and posted entries are never updated or deleted; a correction is a reversing entry.\n- System accounts such as receivables and payables are found by role, never by account number.\n- Each write action is registered with its kind (read, draft, post or admin) and its approval category, and supports dry_run and an idempotency key.\n- Money is bigint minor units. Exchange rates and tax rates keep their documented precision.\n- Failures return a reason code and a plain message. No stack traces or secrets reach the caller.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "packages/db/**",
+      "rule": "BeeKeeping schema and migrations. Check that:\n- Every new table that holds organization data has org_id, a row-level security policy on org_id, and composite foreign keys that keep references inside one organization.\n- Money columns are bigint minor units, and rate columns are numeric with the documented precision.\n- Ledger tables keep their guarantees: a line is a debit or a credit, never both and never negative; entries balance at commit; posted rows can't be updated or deleted.\n- Audit triggers cover new tables with an explicit list of fields, and secret columns stay off that list.\n- A migration that changes or drops existing data says so in a comment at the top, with a tested way back or the reason there is none.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "packages/mcp/**",
+      "rule": "BeeKeeping's MCP server is generated from the action registry. Check that:\n- Every tool maps to a registered action and keeps that action's role, scope and approval category. No tool skips approvals or offers admin actions.\n- Read tools carry the read-only annotation. Write tools take dry_run and an idempotency key.\n- Results never include secrets or unmasked bank numbers, and free text that came from documents is marked as untrusted data.\n- Lists page with a cursor and stop at 100 rows. Report tools require a date range.\n- Sign-in follows the MCP authorization spec. Tokens are bound to BeeKeeping as their audience and never passed on to other services.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "apps/web/**",
+      "rule": "BeeKeeping's web app is a thin layer over actions. Check that:\n- Server actions and route handlers only parse input with zod, build the action context from the session and call one action. Business rules found here belong in packages/actions.\n- No secret, key or bank number reaches a client component, a log or an error page.\n- Pages meet WCAG 2.1 AA: labelled controls, keyboard access, visible focus and enough contrast in both themes.\n- Amounts are formatted through the money service, never with floating-point math.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "apps/worker/**",
+      "rule": "BeeKeeping's worker runs jobs and agent routines. Check that:\n- Jobs call actions, carry an idempotency key, report success or failure per item, and never stop a whole run because one item failed.\n- Agent routines run under their own agent identity, use only the tools their routine allows, respect run limits and approval policies, and log every tool call to the run record.\n- Text from documents is treated as data. Nothing in a memo, a vendor name or an email body can change what a routine is allowed to do.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "**/*.sh",
+      "rule": "Shell scripts. Check that the script starts with set -euo pipefail, quotes every variable, and fails when a check it runs fails. A SlowBooks startup check piped its output into tail and could never fail.",
+      "merge_system_rule": true
+    },
+    {
+      "path": ".github/workflows/**",
+      "rule": "GitHub Actions workflows. Check that actions are pinned to a release or commit, permissions are the least the job needs, secrets never reach logs, and every check step fails the job when it fails.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "**/*.ts",
+      "rule": "Other BeeKeeping TypeScript. Check that money is bigint minor units, nothing logs a secret, `any` appears only with a comment saying why, and shared logic sits in services or actions as the code-structure skill describes.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "**/*.tsx",
+      "rule": "Other BeeKeeping TypeScript. Check that money is bigint minor units, nothing logs a secret, `any` appears only with a comment saying why, and shared logic sits in services or actions as the code-structure skill describes.",
+      "merge_system_rule": true
+    }
+  ]
+}

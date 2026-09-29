@@ -18,12 +18,11 @@ here, and they win where they differ from the generic text.
    plus runtime evidence. Capture the **before** state while reproducing the
    issue — prior to fixing it, when it is cheapest — and the **after** once
    the change works.
-4. **Ship — `/before-and-after`, then `/greploop`.** Open the PR with
+4. **Ship — `/before-and-after`, then `/ocr-review`.** Open the PR with
    before/after proof embedded in the description (screenshot or video
    whenever the change has a visible surface; measured numbers or output
-   pairs when it doesn't). Run `/greploop` — or `/greploop-apps` when the PR
-   exceeds Greptile's file-count limit — until Greptile reports **5/5 with
-   zero unresolved comments**. Finish by presenting the PR URL.
+   pairs when it doesn't). Run `/ocr-review` until a review round finds
+   **no critical, high or medium issues**. Finish by presenting the PR URL.
 
 Ship-beat notes:
 
@@ -75,8 +74,8 @@ wrote or changed, not to prose you didn't touch.
 6. Open the PR. The body must explain what changed, how it was tested (every
    claim backed by evidence), before/after proof, and any risks or follow-up
    work. Run the title and body through `/unslop` before posting.
-7. Run `/greploop` (or `/greploop-apps`) until **5/5 with zero unresolved
-   comments**.
+7. Run `/ocr-review` until a review round finds **no critical, high or
+   medium issues**.
 8. End by presenting the PR URL.
 
 Do not merge the PR unless explicitly instructed. Keep the worktree until
@@ -121,8 +120,8 @@ expects `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   current default branch. Never commit to either directly.
 - Claude Code on the web has no `gh` CLI. Use the GitHub MCP tools for what
   the skills do with `gh`: list open PRs and their changed files for the
-  scope check, read and answer review comments, resolve threads, and post
-  `@greptile review` to start a greploop round.
+  scope check, open PRs, post the review summary, and read, answer and
+  resolve review threads.
 - Claude Code assigns the task branch. Per `new-feature`, skip its worktree
   steps 3 and 4.
 - Cloud sessions have no display. Use the headless path in
@@ -130,7 +129,11 @@ expects `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   which is gitignored.
 - Chromium is preinstalled for Playwright. For `before-and-after` in a
   container, set `AGENT_BROWSER_ARGS="--no-sandbox"`.
-- `/greploop` needs the Greptile GitHub app installed on this repository.
+- Code review runs on open-code-review, the `ocr` command. If a session
+  lacks it, install it with `npm install -g @alibaba-group/open-code-review`.
+  With no model configured for OCR, `/ocr-review` uses delegation mode and a
+  reviewer subagent does the review. Review rules and skipped paths live in
+  `.opencodereview/rule.json`.
 
 ## Skill sources
 
@@ -138,10 +141,12 @@ expects `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
 |---|---|
 | `new-feature`, `code-structure`, `evidence-driven-testing` | michaelshimeles/skills |
 | `before-and-after` | michaelshimeles/skills, vendored from [vercel-labs/before-and-after](https://github.com/vercel-labs/before-and-after) (or `npx skills add vercel-labs/before-and-after`) |
-| `greploop` | michaelshimeles/skills, vendored from [greptileai/skills](https://github.com/greptileai/skills) |
-| `greploop-apps` | michaelshimeles/skills (local variant of greploop for huge PRs; no separate upstream) |
+| `open-code-review`, `open-code-review-delegate` | [alibaba/open-code-review](https://github.com/alibaba/open-code-review) at commit `f93ff15`, Apache-2.0, with the license in each folder |
+| `ocr-review` | Written for BeeKeeping. Runs the review loop on open-code-review |
 | `unslop` | michaelshimeles/skills, vendored from [cursor/plugins (pstack)](https://github.com/cursor/plugins/tree/main/pstack/skills/unslop); frontmatter edited so agents apply it unprompted (`disable-model-invocation` dropped, description scoped to text the agent writes or edits for people), body untouched |
 
 Installed from [michaelshimeles/skills](https://github.com/michaelshimeles/skills)
 at commit `4b72f46` on 2026-09-29. `code-structure`, `new-feature` and
-`evidence-driven-testing` ship without a license file.
+`evidence-driven-testing` ship without a license file. That collection's
+`greploop` and `greploop-apps` skills were removed the same day, when
+BeeKeeping moved its code review from Greptile to open-code-review.

@@ -26,6 +26,7 @@ Nobody has decided these yet, so I picked the answer that fits best and built th
 3. **The web app comes first.** A phone app for receipt photos and approvals comes after launch. Bookkeeping itself is keyboard work.
 4. **Payroll comes from a partner.** SlowBooks wrote withholding for every state and still calls its numbers approximate. Payroll mistakes cost employers penalties, and a new product shouldn't carry that risk. An embedded payroll API such as Check or Gusto Embedded does the calculations and filings, and BeeKeeping records the results.
 5. **The build is clean room.** See ground rule 1.
+6. **BeeKeeping is agentic by default.** Every action a person can take, an agent can take too, under the same rules. Agents do the routine back-office work and people approve it from dashboards. The MCP server arrives in phase 1 and the built-in back-office agents in phase 6, before the private beta. The design is in [the agentic back office](agent-back-office.md).
 
 ## Stack
 
@@ -42,7 +43,8 @@ Nobody has decided these yet, so I picked the answer that fits best and built th
 | Email | Resend | Sending plus delivery events, which each document shows. |
 | Card payments | Stripe Connect with Standard accounts | Customers pay invoices into the business's own Stripe account, in the invoice's currency. |
 | Bank data | CSV and OFX import first, Plaid later | Imports work with every bank and cost nothing. Plaid charges per connected account, so it waits for paying users. |
-| AI | Claude API | Reads receipts into structured fields and writes plain-language summaries of reports. |
+| Agent access | An MCP server over Streamable HTTP, with OAuth sign-in | Any AI app the customer uses, such as Claude or ChatGPT, can read the books and propose work. Its tools are generated from the same action registry as the web app. |
+| AI | Claude API | Runs the built-in back-office routines, reads receipts into structured fields, and writes plain-language summaries. |
 | Hosting | Railway | Web service, worker service, Postgres and a bucket, with a staging environment and an environment per pull request. The PR environment gives `before-and-after` a real "after" URL. |
 | Tests | Vitest, fast-check, Playwright, axe | Unit tests, property-based ledger tests, end-to-end flows and accessibility checks. |
 | Errors | Sentry | Server and browser errors, tagged with the organization and never with personal data. |
@@ -79,6 +81,7 @@ The inventory's notes sections list what SlowBooks got wrong. Each problem below
 | Reports were accrual basis only. | Every financial report takes accrual or cash basis from the start. | [§5](../research/slowbooks-pro-2026/05-reports-dashboard-analytics-ai.md) |
 | The aging reports needed several fixes before they matched the balance sheet. | After every scenario in the test suite, A/R aging must equal the receivables account and A/P aging must equal payables. | [§5](../research/slowbooks-pro-2026/05-reports-dashboard-analytics-ai.md) |
 | The app wrote an email log that no screen showed. | Each document lists the emails sent about it, with delivery status. | [§1](../research/slowbooks-pro-2026/01-sales-accounts-receivable.md) |
+| The analytics page counted paid invoices in their own currencies, so its totals disagreed with the reports. | Every dashboard number comes from the report queries, so dashboards and reports always agree. | [§5](../research/slowbooks-pro-2026/05-reports-dashboard-analytics-ai.md) |
 | The docs described features the code didn't have. | The build generates the API reference from the code, and each feature page names the test that proves it. | [Index](../research/slowbooks-pro-2026/README.md) |
 
 SlowBooks also got a lot right. Keep these:
@@ -106,6 +109,7 @@ packages/actions    The why and when. One folder per area, one file per flow, an
 packages/services   The how. Money, ledger checks, terms, numbering, tax, PDF, email, storage,
                     FX and import parsers.
 packages/db         Drizzle schema, migrations, row-level security policies, seed data.
+packages/mcp        The MCP server, generated from the action registry.
 packages/ui         Shared components and design tokens.
 packages/testing    Factories, the demo company and the ledger property suite.
 ```
@@ -177,6 +181,10 @@ pg-boss queues handle recurring invoices, PDF rendering, email, imports, bank sy
 
 Files live in the bucket under `org/<orgId>/`, served through short-lived signed URLs, with a size limit and a list of allowed types. The PDF service takes a template name and data and returns bytes, and Chromium renders the HTML as a tagged PDF. A document keeps its PDF until the document changes.
 
+### Agents
+
+Every action registers its name, input and output schemas, required role, kind and approval category in one registry. The web app, the MCP server and the REST API are generated from it, so an agent can do what a person in the same role can do, under the same checks, and nothing more. Agents are principals with their own identity, role and scopes, and the audit log names the agent and the person who approved. By default agents draft and people post, and each organization's policies decide what an agent may do alone. [The agentic back office](agent-back-office.md) has the tool list, the dashboards, the routines and the approval rules.
+
 ### Operations
 
 Sentry catches errors. Logs are structured and carry organization and user ids but no personal data. Railway watches a health endpoint. The database gets daily backups with point-in-time recovery, staging gets a restore drill before launch, and every organization can export all of its data.
@@ -187,20 +195,20 @@ Sentry catches errors. Logs are structured and carry organization and user ids b
 
 ## Roadmap
 
-Phases 0 to 5 are the first release, which opens as a private beta at gate G2. Phases 6 to 8 get it ready for the public. Phase 9 builds the remaining modules in the order beta users ask for them. The [execution plan](execution-plan.md#every-task-phase-by-phase) lists every task with its type, proof and dependencies, and its [setup steps](execution-plan.md#before-the-first-task) come before the first task.
+Phases 0 to 6 are the first release, which opens as a private beta at gate G2. Phases 7 and 8 get it ready for the public. Phase 9 builds the remaining modules in the order beta users ask for them. The [execution plan](execution-plan.md#every-task-phase-by-phase) lists every task with its type, proof and dependencies, and its [setup steps](execution-plan.md#before-the-first-task) come before the first task.
 
 | Phase | What it delivers | Tasks | Gate |
 |---|---|---|---|
-| 0. Foundations | Sign-in, organizations, CI, staging and the evidence tools | 9 | G0 |
-| 1. The ledger | Chart of accounts, posting, the closing date, opening balances and the first reports | 10 | G1 |
-| 2. Sales and receivables | Customers through to cash, statements and online payments | 16 | |
-| 3. Purchases and payables | Vendors through to payments, and 1099 totals | 7 | |
-| 4. Banking | Statement imports, matching, rules and reconciliation | 7 | |
-| 5. Reports, dashboard and tax | Report center, cash flow, sales tax, Schedule C, the dashboard and full export | 7 | G2, private beta |
-| 6. Moving in | CSV, QuickBooks Online, Xero, Wave and IIF imports | 5 | |
-| 7. Receipts and AI | The receipt inbox, receipt reading and the monthly summary | 4 | |
+| 0. Foundations | Sign-in, organizations, CI, staging, the evidence tools, the action registry and agent identities | 11 | G0 |
+| 1. The ledger | Chart of accounts, posting, the closing date, opening balances, the first reports, the MCP server and approvals | 12 | G1 |
+| 2. Sales and receivables | Customers through to cash, statements, online payments and the sales tools for agents | 17 | |
+| 3. Purchases and payables | Vendors through to payments, 1099 totals and the purchase tools for agents | 8 | |
+| 4. Banking | Statement imports, matching, rules, reconciliation and the banking tools for agents | 8 | |
+| 5. Reports, dashboards and tax | Report center, cash flow, sales tax, Schedule C, full export, and the back-office dashboards in the web app and over MCP | 9 | |
+| 6. Back-office agents | The routine runner, receipt intake, bank review, collections, bill run, month-end close, the weekly digest and the Agent activity dashboard | 10 | G2, private beta |
+| 7. Moving in | CSV, QuickBooks Online, Xero, Wave and IIF imports | 5 | |
 | 8. Launch | Billing, onboarding, the security review, backups, legal pages and performance | 7 | G3, public launch |
-| 9. Modules | Classes, currencies, inventory, projects, fixed assets, budgets, nonprofit mode, payroll, the public API, the phone app and the accountant workspace | 41 | One per module |
+| 9. Modules | Classes, currencies, inventory, projects, fixed assets, budgets, nonprofit mode, payroll, the public REST API, the phone app and the accountant workspace | 39 | One per module |
 
 ## Parity with SlowBooks
 
@@ -213,21 +221,21 @@ Phases 0 to 5 are the first release, which opens as a private beta at gate G2. P
 | Bills, bill payments, vendor credits, purchase orders, expenses | Keep, and bills become editable | 3 |
 | Check printing | Later | 9 |
 | 1099-NEC and 1096 | Totals report first, forms and e-filing later | 3, 9 |
-| Receipt scanning with the operating system's OCR | Claude reads receipts on the server | 7 |
+| Receipt scanning with the operating system's OCR | Claude reads receipts on the server | 6 |
 | Perpetual inventory | Later | 9 |
 | Ledger, chart of accounts, journal entries, closing date | Keep, with system roles instead of fixed numbers | 1 |
-| Opening balances wizard | An opening balances screen, then CSV import | 1, 6 |
+| Opening balances wizard | An opening balances screen, then CSV import | 1, 7 |
 | Classes, multi-currency | In the data model now, screens later | 1, 9 |
 | Budgets, fixed assets | Later | 9 |
 | Register, review queue, bank rules, reconciliation | Keep | 4 |
 | SimpleFIN bank feeds | Plaid, which suits a hosted app | 4 |
 | Payroll and HR | Partner API | 9 |
-| Reports and dashboard | Keep, and add cash basis | 1, 5 |
-| AI with eight providers | Claude only, with our key on the server | 7 |
+| Reports and dashboard | Keep, add cash basis, and add back-office dashboards in the web app and over MCP | 1, 5 |
+| AI with eight providers | Claude, running the built-in back-office agents | 6 |
 | Nonprofit mode, job costing | Later | 9 |
-| IIF, QuickBooks Online, Xero, MYOB, Sage, Wave, Zoho and GnuCash imports | QuickBooks Online, CSV, Xero, Wave and IIF | 6 |
+| IIF, QuickBooks Online, Xero, MYOB, Sage, Wave, Zoho and GnuCash imports | QuickBooks Online, CSV, Xero, Wave and IIF | 7 |
 | Users, roles, multiple companies | Organizations and roles | 0 |
-| API tokens | Later | 9 |
+| API tokens and a REST API built for agents | Agent identities and tokens, then an MCP server, then REST | 0, 1, 9 |
 | Backups and restore | Hosted backups and a full export per organization | 5, 8 |
 | Desktop apps, Server Edition, Docker install | Dropped, because BeeKeeping is hosted | none |
 | Accessibility and tagged PDFs | Keep, from the first screen | 0 |
@@ -240,6 +248,7 @@ Phases 0 to 5 are the first release, which opens as a private beta at gate G2. P
 - **End-to-end tests** in Playwright walk each phase's exit test on the demo company. The same scripts produce the evidence for PRs.
 - **Accessibility checks** run axe on every page in CI.
 - **Importer fixtures** are real exports, including awkward ones with false flags, empty fields, quoted commas and ALL-CAPS names.
+- **Agent evals** run each back-office routine against scenarios on the demo company every night, and score how often a person would accept what it did.
 
 ## Risks
 
@@ -253,3 +262,5 @@ Phases 0 to 5 are the first release, which opens as a private beta at gate G2. P
 | The SlowBooks license | The clean-room rule. |
 | Parallel agents colliding | The `new-feature` scope check, one task per PR, and the Needs column. |
 | AI misreading a receipt | A person reviews every reading before anything posts. |
+| An agent does the wrong thing | Agents draft and people post by default. Policies, dry runs and approvals gate every write, a void undoes any posting, and a routine whose eval score drops is paused. |
+| Instructions hidden in a document | Scopes, roles and policies are enforced on the server, document text is marked as data, and write tools only take structured arguments. |
