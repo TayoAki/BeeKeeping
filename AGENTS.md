@@ -124,11 +124,26 @@ command from the repo root.
 | `pnpm test` | Runs Vitest in every package and the repo tests in `tests/`. A test marked `.only` fails the run. |
 | `pnpm build` | Builds the web app. |
 | `pnpm check` | Runs typecheck, lint, format:check and test, in that order. |
+| `pnpm db:start` | Starts the throwaway Postgres on port 54320, with its files in `/tmp/beekeeping-postgres`. `pnpm db:stop` stops it. |
+| `pnpm db:migrate` | Applies pending migrations to `DATABASE_URL`, or to `beekeeping_dev` on the throwaway Postgres when it isn't set. |
 
 A task is ready for review when `pnpm check` and `pnpm build` pass. CI runs
 the same steps on every PR and on pushes to `main` and `claude/**`, in
-`.github/workflows/ci.yml`. P0.3 adds `pnpm db:migrate` and P0.7 adds
-`pnpm test:e2e`. Each lists its command here.
+`.github/workflows/ci.yml`, against a Postgres 16 service. P0.7 adds
+`pnpm test:e2e` and lists it here.
+
+Databases:
+
+- The throwaway Postgres runs the Postgres 16 that the cloud image has, so
+  it needs no Docker. Tests and `pnpm db:migrate` start it when needed.
+- Each test run migrates one template database, and each test file clones it
+  with `createTestDatabase()` from `@beekeeping/db/testing`. Files never share
+  rows, and worktrees never share a database.
+- Set `TEST_DATABASE_ADMIN_URL` to run the tests on another server, as CI
+  does. Never point it at a server with real data: tests create and drop
+  databases there.
+- Migrations live in `packages/db/drizzle`. Write the schema in
+  `packages/db/src/schema` and run `pnpm --filter @beekeeping/db db:generate`.
 
 How the workspace fits together:
 

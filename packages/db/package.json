@@ -4,13 +4,27 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./migrate": "./src/migrate.ts",
+    "./testing": "./src/testing/test-database.ts"
   },
   "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.ts",
+    "db:start": "node scripts/local-postgres.ts start",
+    "db:stop": "node scripts/local-postgres.ts stop",
     "typecheck": "tsc"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "@types/pg": "catalog:",
+    "drizzle-kit": "0.31.11",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@beekeeping/services": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
   }
 }

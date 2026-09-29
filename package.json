@@ -12,6 +12,9 @@
   "scripts": {
     "build": "pnpm --recursive run build",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "db:migrate": "pnpm --filter @beekeeping/db run db:migrate",
+    "db:start": "pnpm --filter @beekeeping/db run db:start",
+    "db:stop": "pnpm --filter @beekeeping/db run db:stop",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint --max-warnings=0 .",

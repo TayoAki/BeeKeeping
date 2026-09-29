@@ -26,6 +26,24 @@ jobs:
     name: Checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      postgres:
+        # Postgres 16.13, the version cloud sessions run, pinned by digest.
+        image: postgres:16.13@sha256:5d143123fdf80462d1778cd4f24b9f7ca13c87174bca19141fb194c5a1ebca59
+        env:
+          # A throwaway server that lives as long as this job.
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: beekeeping_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/beekeeping_ci
+      TEST_DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,6 +70,9 @@ jobs:
 
       - name: Format
         run: pnpm format:check
+
+      - name: Migrate a fresh database
+        run: pnpm db:migrate
 
       - name: Test
         run: pnpm test
