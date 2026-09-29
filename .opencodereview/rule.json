@@ -8,7 +8,13 @@
     "**/drizzle/meta/**",
     "**/*.snap"
   ],
+  "include": ["**/*.test.ts", "**/*.test.tsx", "AGENTS.md"],
   "rules": [
+    {
+      "path": "AGENTS.md",
+      "rule": "The rules every agent session follows. Check that each command it lists exists in package.json, that no rule contradicts the hard invariants or docs/execution-plan.md, and that new text follows the unslop skill: plain words, active voice, no em dashes and no filler.",
+      "merge_system_rule": true
+    },
     {
       "path": "**/package.json",
       "rule": "Workspace manifests. Check that:\n- Every package is private, is an ES module, and has a typecheck script that runs tsc.\n- Internal packages export their src entry. A version that several packages share comes from the catalog in pnpm-workspace.yaml.\n- Dependencies follow the layers: services never depend on db, actions, mcp, ui or an app, nothing depends on an app, and only tests use @beekeeping/testing.\n- A new dependency is maintained, pinned to an exact version, and needed by the change.",
