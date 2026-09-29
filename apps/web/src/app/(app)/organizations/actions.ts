@@ -3,7 +3,7 @@
 import { setUpOrganization } from "@beekeeping/actions";
 import { z } from "zod";
 
-import { runForMember } from "../../server/actions.ts";
+import { runForMember } from "../../../server/actions.ts";
 
 const input = z.object({ homeCurrency: z.string().trim().min(1) });
 

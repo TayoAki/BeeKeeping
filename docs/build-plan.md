@@ -33,7 +33,7 @@ Nobody has decided these yet, so I picked the answer that fits best and built th
 | Part | Choice | Why |
 |---|---|---|
 | Language | TypeScript in strict mode | One language for the web app, the worker and a later React Native app. The installed skills use TypeScript and Node in their examples and tools. |
-| Web app | Next.js App Router, React, Tailwind, shadcn/ui | Server actions make thin adapters over the actions layer described under Architecture. |
+| Web app | Next.js App Router, React, and packages/ui's CSS tokens and components | Server actions make thin adapters over the actions layer described under Architecture. packages/ui keeps each colour's light and dark value in one CSS variable and its components are written by hand, so the app needs no CSS framework. |
 | Database | Postgres 16 | Bookkeeping needs transactions, constraints and SQL for reports. The ledger rules live in the database, so no code path can skip them. |
 | Database access | Drizzle ORM and drizzle-kit migrations | Queries read like the SQL they send, and the schema can declare row-level security policies. |
 | Sign-in | Better Auth with its organization plugin | Sessions live in our Postgres, so removing a user ends their sessions at once. |

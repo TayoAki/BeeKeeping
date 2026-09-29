@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-import { failureOf } from "../lib/auth-call.ts";
-import { authClient } from "../lib/auth-client.ts";
+import { signOutHere } from "../lib/session-changes.ts";
 import { useRequest } from "../lib/use-request.ts";
 import { FormError } from "./form-error.tsx";
 
@@ -17,18 +16,7 @@ export function SignOutButton() {
         type="button"
         className="secondary"
         aria-disabled={pending}
-        onClick={() => {
-          void run(async () => {
-            const failure = await failureOf(
-              authClient.signOut(),
-              "We couldn't sign you out. Try again.",
-            );
-            if (failure) return failure;
-            router.replace("/sign-in");
-            router.refresh();
-            return undefined;
-          });
-        }}
+        onClick={() => void run(() => signOutHere(router))}
       >
         Sign out
       </button>

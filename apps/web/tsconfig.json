@@ -6,13 +6,19 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "types": ["node"],
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
   "include": [
     "next-env.d.ts",
     "next.config.ts",
     "vitest.config.ts",
+    "playwright.config.ts",
     "src",
+    "e2e",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

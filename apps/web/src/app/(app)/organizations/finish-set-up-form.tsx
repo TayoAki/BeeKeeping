@@ -6,11 +6,11 @@ import type { FormEvent } from "react";
 import {
   CurrencyField,
   type CurrencyOption,
-} from "../../components/currency-field.tsx";
-import { FormError } from "../../components/form-error.tsx";
-import { SubmitButton } from "../../components/submit-button.tsx";
-import { fieldText } from "../../lib/form.ts";
-import { useRequest } from "../../lib/use-request.ts";
+} from "../../../components/currency-field.tsx";
+import { FormError } from "../../../components/form-error.tsx";
+import { SubmitButton } from "../../../components/submit-button.tsx";
+import { fieldText } from "../../../lib/form.ts";
+import { useRequest } from "../../../lib/use-request.ts";
 import { setUpOrganizationAction } from "./actions.ts";
 
 /** For an owner whose organization has no home currency yet. */

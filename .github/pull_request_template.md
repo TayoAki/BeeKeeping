@@ -21,13 +21,15 @@ testing, web, worker, and repo files such as CI, docs and config. -->
 
 ## How it was tested
 
-<!-- pnpm check and pnpm build, then the proof the task's row asks for.
+<!-- pnpm check, pnpm build and pnpm test:e2e, then the proof the task's
+row asks for.
 .artifacts/<task>/ stays on the machine, so paste the output here or link
 the uploaded capture: demo company only, and never a key, token or bank
 number. Every claim here points at a test or a capture. -->
 
 - `pnpm check`:
 - `pnpm build`:
+- `pnpm test:e2e`:
 - Evidence:
 - Review: pending
 

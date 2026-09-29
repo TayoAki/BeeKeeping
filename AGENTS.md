@@ -65,8 +65,8 @@ wrote or changed, not to prose you didn't touch.
 ## Completing a task
 
 1. Keep changes limited to the assigned task.
-2. Run the repo's checks: `pnpm check` and `pnpm build`, as listed under
-   [Commands and checks](#commands-and-checks).
+2. Run the repo's checks: `pnpm check`, `pnpm build` and `pnpm test:e2e`,
+   as listed under [Commands and checks](#commands-and-checks).
 3. Assemble the evidence captured along the way into before/after pairs.
 4. Commit with a clear message, rebase onto the latest `origin/main`, and
    rerun the checks.
@@ -125,14 +125,15 @@ command from the repo root.
 | `pnpm test` | Runs Vitest in every package and the repo tests in `tests/`. A test marked `.only` fails the run. |
 | `pnpm build` | Builds the web app. |
 | `pnpm check` | Runs typecheck, lint, format:check and test, in that order. |
+| `pnpm test:e2e` | Runs the Playwright tests in `apps/web/e2e`: the app shell with a keyboard, and axe on every page and state in both themes. It starts `next dev` on port 3190, or `E2E_PORT` when set, with a fresh database, a login of its own and the email outbox, and drops them after. It also takes the port after that one, so runs side by side need ports at least two apart, and it refuses to start when either port is taken. Stop any `next dev` running from the same checkout first: the run refuses to start beside one. |
 | `pnpm db:start` | Starts the throwaway Postgres on port 54320, with its files in `/tmp/beekeeping-postgres`. `pnpm db:stop` stops it for every checkout on the machine. |
 | `pnpm db:migrate` | Applies pending migrations to `MIGRATION_DATABASE_URL`, which logs in as the database owner. When it isn't set, migrates this checkout's development database on the throwaway Postgres and creates the app's local login. |
 | `pnpm -s db:url` | Prints the URL the app uses for this checkout's development database. Run `pnpm db:migrate` once first, then `export DATABASE_URL="$(pnpm -s db:url)"`. Without `-s`, pnpm's banner lands in the variable too. |
 
-A task is ready for review when `pnpm check` and `pnpm build` pass. CI runs
-the same steps on every PR and on pushes to `main` and `claude/**`, in
-`.github/workflows/ci.yml`, against a Postgres 16 service. P0.7 adds
-`pnpm test:e2e` and lists it here.
+A task is ready for review when `pnpm check`, `pnpm build` and
+`pnpm test:e2e` pass. CI runs the same steps on every PR and on pushes to
+`main` and `claude/**`, in `.github/workflows/ci.yml`, against a Postgres 16
+service.
 
 Databases:
 

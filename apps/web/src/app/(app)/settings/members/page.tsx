@@ -1,18 +1,26 @@
 import type { Metadata } from "next";
 import { roleAtLeast } from "@beekeeping/actions";
 import { headers } from "next/headers";
-import Link from "next/link";
 import { forbidden, redirect } from "next/navigation";
 
-import { getAuth } from "../../../server/auth.ts";
-import { activeMembership, requireSignedIn } from "../../../server/session.ts";
+import { getAuth } from "../../../../server/auth.ts";
+import {
+  activeMembership,
+  requireSignedIn,
+} from "../../../../server/session.ts";
 import {
   CancelInvitationButton,
   InviteForm,
   RemoveMemberButton,
 } from "./member-forms.tsx";
 
-export const metadata: Metadata = { title: "Members" };
+// Below admin the page answers 403, and its title says so too, since the
+// 403 page can't set one.
+export async function generateMetadata(): Promise<Metadata> {
+  const membership = await activeMembership();
+  const refused = membership && !roleAtLeast(membership.role, "admin");
+  return { title: refused ? "Not allowed" : "Members" };
+}
 
 export default async function MembersPage() {
   await requireSignedIn();
@@ -37,10 +45,7 @@ export default async function MembersPage() {
   const expired = open.filter((invitation) => invitation.expiresAt <= now);
 
   return (
-    <main>
-      <p>
-        <Link href="/">{membership.organizationName}</Link>
-      </p>
+    <>
       <h1>Members</h1>
       <table>
         <caption className="hint">Everyone who can open these books.</caption>
@@ -106,6 +111,6 @@ export default async function MembersPage() {
       )}
 
       <InviteForm />
-    </main>
+    </>
   );
 }

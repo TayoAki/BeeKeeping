@@ -13,11 +13,15 @@ const nextConfig: NextConfig = {
   // next dev would write its own AGENTS.md and CLAUDE.md here. The ones at
   // the repo root already guide agents.
   agentRules: false,
+  // The dev indicator sits on top of the page, in screenshots and in the
+  // end-to-end tests' accessibility checks. Errors still show.
+  devIndicators: false,
   // Workspace packages ship TypeScript source, so Next.js compiles them.
   transpilePackages: [
     "@beekeeping/actions",
     "@beekeeping/db",
     "@beekeeping/services",
+    "@beekeeping/ui",
   ],
   // The reset and confirmation pages' addresses hold their tokens. No
   // request from the pages may carry one in Referer, and the header arrives

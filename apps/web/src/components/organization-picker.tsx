@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { authClient } from "../lib/auth-client.ts";
-import { failureOf } from "../lib/auth-call.ts";
+import { openOrganization } from "../lib/session-changes.ts";
 import { FormError } from "./form-error.tsx";
 
 export function OrganizationPicker({
@@ -25,10 +24,7 @@ export function OrganizationPicker({
               onClick={() => {
                 void (async () => {
                   setError(undefined);
-                  const failure = await failureOf(
-                    authClient.organization.setActive({ organizationId: id }),
-                    "We couldn't open that organization.",
-                  );
+                  const failure = await openOrganization(id);
                   if (failure) {
                     setError(failure);
                     return;

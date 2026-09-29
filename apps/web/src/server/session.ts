@@ -26,6 +26,27 @@ export const requireSignedIn = cache(async () => {
   return session;
 });
 
+export type OrganizationSummary = {
+  readonly id: string;
+  readonly name: string;
+};
+
+/** Every organization the signed-in person belongs to, by name. */
+export const listMyOrganizations = cache(
+  async (): Promise<OrganizationSummary[]> => {
+    const organizations = await getAuth()
+      .api.listOrganizations({ headers: await headers() })
+      .catch(() => {
+        // As with the session, the error carries the query, so none of it
+        // goes on to Next.js's log.
+        throw new Error("We couldn't read your organizations.");
+      });
+    return organizations
+      .map(({ id, name }) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+);
+
 export type Membership = {
   readonly organizationId: string;
   readonly organizationName: string;

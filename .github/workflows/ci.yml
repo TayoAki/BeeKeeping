@@ -80,6 +80,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Install Chromium for the end-to-end tests
+        run: pnpm --filter @beekeeping/web exec playwright install --with-deps chromium
+
+      - name: End-to-end tests, with axe in both themes
+        run: pnpm test:e2e
+
       - name: Check the steps left no changes behind
         run: |
           changes="$(git status --porcelain)"

@@ -4,12 +4,12 @@ import { personNameLimit } from "@beekeeping/actions/auth/name";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { FormError } from "../../../components/form-error.tsx";
-import { SubmitButton } from "../../../components/submit-button.tsx";
-import { failureOf } from "../../../lib/auth-call.ts";
-import { authClient } from "../../../lib/auth-client.ts";
-import { fieldText } from "../../../lib/form.ts";
-import { useRequest } from "../../../lib/use-request.ts";
+import { FormError } from "../../../../components/form-error.tsx";
+import { SubmitButton } from "../../../../components/submit-button.tsx";
+import { failureOf } from "../../../../lib/auth-call.ts";
+import { authClient } from "../../../../lib/auth-client.ts";
+import { fieldText } from "../../../../lib/form.ts";
+import { useRequest } from "../../../../lib/use-request.ts";
 
 type Setup = { totpURI: string; backupCodes: string[] };
 

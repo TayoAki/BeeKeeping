@@ -42,4 +42,4 @@ if ! command -v ocr >/dev/null 2>&1; then
   fi
 fi
 
-echo "session-start: installed the workspace with pnpm $(pnpm --version) on Node $(node --version). Run pnpm check and pnpm build before asking for review."
+echo "session-start: installed the workspace with pnpm $(pnpm --version) on Node $(node --version). Run pnpm check, pnpm build and pnpm test:e2e before asking for review."

@@ -7,12 +7,14 @@
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
-    "typecheck": "next typegen && tsc"
+    "typecheck": "next typegen && tsc",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@beekeeping/actions": "workspace:*",
     "@beekeeping/db": "workspace:*",
     "@beekeeping/services": "workspace:*",
+    "@beekeeping/ui": "workspace:*",
     "better-auth": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
@@ -20,6 +22,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.56.1",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "@types/react": "catalog:",

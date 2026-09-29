@@ -21,7 +21,8 @@
     ".github/pull_request_template.md",
     ".claude/skills/ocr-review/SKILL.md",
     "docs/**/*.md",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "apps/web/e2e/**"
   ],
   "rules": [
     {
@@ -77,6 +78,11 @@
     {
       "path": "vitest.config.ts",
       "rule": "Test runner settings. Check that every package's tests still run, and that nothing lets CI pass while tests are skipped. The test script in package.json passes --allowOnly=false, so a test marked .only fails the run.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "apps/web/e2e/**",
+      "rule": "BeeKeeping's end-to-end tests, run by Playwright against next dev on a fresh database. Check that:\n- Each test would fail if the behavior it names broke, and waits on what a person would see or do, never on fixed sleeps.\n- axe runs with the WCAG 2.2 A and AA tags and best practices, in both themes, on every page and on each part of the shell that opens.\n- Tests use demo company names and addresses only, and leave no database, login, process or file behind.\n- The server script never prints a secret or a database URL.",
       "merge_system_rule": true
     },
     {

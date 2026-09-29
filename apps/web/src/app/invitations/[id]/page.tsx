@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 
+import { SignOutButton } from "../../../components/sign-out-button.tsx";
 import { getAuth } from "../../../server/auth.ts";
 import { AcceptInvitation } from "./accept-invitation.tsx";
 
@@ -48,11 +49,13 @@ export default async function InvitationPage({
         <h1>This invitation isn&apos;t available</h1>
         <p>
           It may have expired or been used, or it went to an address other than{" "}
-          {session.user.email}.
+          {session.user.email}. To use another address, sign out, then open the
+          link in the invitation again.
         </p>
         <p>
           <Link href="/">Back to your books</Link>
         </p>
+        <SignOutButton />
       </main>
     );
   }

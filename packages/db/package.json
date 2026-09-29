@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./migrate": "./src/migrate.ts",
     "./testing": "./src/testing/test-database.ts",
+    "./testing/app-database": "./src/testing/app-database.ts",
     "./testing/global-setup": "./src/testing/global-setup.ts"
   },
   "scripts": {
