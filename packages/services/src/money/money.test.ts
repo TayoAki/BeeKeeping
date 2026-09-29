@@ -164,6 +164,9 @@ describe("rounding half up", () => {
   it("refuses a Decimal with a negative or fractional scale", () => {
     expect(() => toMinor({ units: 1n, scale: -1 }, "USD")).toThrow(RangeError);
     expect(() => multiply(100n, { units: 1n, scale: 1.5 })).toThrow(RangeError);
+    expect(() =>
+      money.times({ units: 1n, scale: 0.5 }, { units: 1n, scale: 0.5 }),
+    ).toThrow(RangeError);
   });
 
   it("reads decimals with or without a leading digit", () => {
@@ -247,6 +250,15 @@ describe("parse", () => {
     ["-92233720368547758.09", "out_of_range"],
   ] as const)("refuses %j as %s", (text, reason) => {
     expect(parse(text, "USD")).toEqual({ ok: false, reason });
+  });
+
+  it("refuses a mark written with an abbreviation point", () => {
+    // Written this way, the amount meant is Rp 500 or 50 kroner, not 0.50.
+    expect(parse("Rp.500", "IDR")).toEqual({ ok: false, reason: "invalid" });
+    expect(parse("kr.50", "DKK")).toEqual({ ok: false, reason: "invalid" });
+    expect(parse("$.50", "USD")).toEqual({ ok: true, minor: 50n });
+    expect(parse("CA$.50", "CAD")).toEqual({ ok: true, minor: 50n });
+    expect(parse("Rp500", "IDR")).toEqual({ ok: true, minor: 50000n });
   });
 
   it("refuses decimals a currency doesn't have", () => {

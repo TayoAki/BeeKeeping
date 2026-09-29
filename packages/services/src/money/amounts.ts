@@ -115,6 +115,10 @@ export function parse(
   let text = input.trim();
   if (text === "") return fail("empty");
 
+  // A letter mark with an abbreviation point, as in "Rp.500" or "kr.50", is
+  // not a leading-point decimal. Refuse it instead of reading 0.50.
+  if (/\p{L}\./u.test(text)) return fail("invalid");
+
   // Parentheses mean negative, as in "(12.50)", and then no sign may follow.
   const parenthesized = text.startsWith("(") && text.endsWith(")");
   if (parenthesized) text = text.slice(1, -1).trim();
