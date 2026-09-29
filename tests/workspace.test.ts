@@ -45,6 +45,13 @@ function effectiveCompilerOptions(dir: string): ts.CompilerOptions {
     .options;
 }
 
+it("fails the test run on a test marked .only", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(root, "package.json"), "utf8"),
+  ) as Manifest;
+  expect(manifest.scripts?.test).toContain("--allowOnly=false");
+});
+
 it("finds the apps and packages from the build plan", () => {
   expect(packageDirs).toEqual(
     expect.arrayContaining([

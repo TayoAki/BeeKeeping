@@ -119,7 +119,7 @@ field of `package.json`. Run every command from the repo root.
 | `pnpm typecheck` | Runs `tsc` on the root files and on every package. |
 | `pnpm lint` | Runs ESLint on the whole repo, layer rules included. A warning fails it. |
 | `pnpm format:check` | Checks Prettier formatting. `pnpm format` fixes it. |
-| `pnpm test` | Runs Vitest in every package and the repo tests in `tests/`. |
+| `pnpm test` | Runs Vitest in every package and the repo tests in `tests/`. A test marked `.only` fails the run. |
 | `pnpm build` | Builds the web app. |
 | `pnpm check` | Runs typecheck, lint, format:check and test, in that order. |
 

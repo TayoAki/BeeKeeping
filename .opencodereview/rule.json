@@ -31,7 +31,7 @@
     },
     {
       "path": "vitest.config.ts",
-      "rule": "Test runner settings. Check that every package's tests still run, that a test focused with .only still fails the run, and that nothing lets CI pass while tests are skipped.",
+      "rule": "Test runner settings. Check that every package's tests still run, and that nothing lets CI pass while tests are skipped. The test script in package.json passes --allowOnly=false, so a test marked .only fails the run.",
       "merge_system_rule": true
     },
     {
