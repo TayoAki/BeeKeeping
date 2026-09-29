@@ -2,8 +2,12 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { fail, ok, type Result } from "./result.ts";
 
-function post(balanced: boolean): Result<{ entryId: string }, "unbalanced"> {
-  return balanced ? ok({ entryId: "je_1" }) : fail("unbalanced");
+function post(
+  balanced: boolean,
+): Result<{ entryId: string }, "unbalanced", { differenceMinor: bigint }> {
+  return balanced
+    ? ok({ entryId: "je_1" })
+    : fail("unbalanced", { differenceMinor: 100n });
 }
 
 describe("ok", () => {
@@ -23,6 +27,11 @@ describe("ok", () => {
   it("refuses fields named ok or reason at compile time", () => {
     // @ts-expect-error A success can't carry its own reason field.
     expect(ok({ reason: "posted" }).ok).toBe(true);
+  });
+
+  it("refuses a class instance, whose methods the copy would drop", () => {
+    // @ts-expect-error Pass a Date as a named field, as in ok({ postedAt }).
+    expect(ok(new Date(0)).ok).toBe(true);
   });
 });
 
@@ -64,13 +73,15 @@ describe("Result", () => {
     }
   });
 
-  it("narrows a failure to its reason codes", () => {
+  it("narrows a failure to its reason codes and details", () => {
     const result = post(false);
     expect(result.ok).toBe(false);
 
     if (!result.ok) {
       expectTypeOf(result.reason).toEqualTypeOf<"unbalanced">();
+      expectTypeOf(result.differenceMinor).toEqualTypeOf<bigint>();
       expect(result.reason).toBe("unbalanced");
+      expect(result.differenceMinor).toBe(100n);
     }
   });
 });

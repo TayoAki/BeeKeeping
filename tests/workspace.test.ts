@@ -18,6 +18,19 @@ const packageDirs = ["apps", "packages"].flatMap((group) =>
     .map((entry) => `${group}/${entry.name}`),
 );
 
+// strict turns these on, and a tsconfig can still turn any one of them off.
+const strictFamily = [
+  "alwaysStrict",
+  "noImplicitAny",
+  "noImplicitThis",
+  "strictBindCallApply",
+  "strictBuiltinIteratorReturn",
+  "strictFunctionTypes",
+  "strictNullChecks",
+  "strictPropertyInitialization",
+  "useUnknownInCatchVariables",
+] as const;
+
 type Manifest = {
   name?: string;
   private?: boolean;
@@ -81,13 +94,18 @@ describe.each(packageDirs)("%s", (dir) => {
   });
 
   it("type checks with the strict settings of tsconfig.base.json", () => {
-    expect(effectiveCompilerOptions(dir)).toMatchObject({
+    const options = effectiveCompilerOptions(dir);
+    for (const flag of strictFamily) {
+      expect(options[flag], flag).not.toBe(false);
+    }
+    expect(options).toMatchObject({
       strict: true,
       noUncheckedIndexedAccess: true,
       noImplicitOverride: true,
       noImplicitReturns: true,
       noFallthroughCasesInSwitch: true,
       allowUnreachableCode: false,
+      allowUnusedLabels: false,
       verbatimModuleSyntax: true,
       erasableSyntaxOnly: true,
     });
@@ -97,12 +115,13 @@ describe.each(packageDirs)("%s", (dir) => {
     const config = (await eslint.calculateConfigForFile(
       join(root, dir, "src/index.ts"),
     )) as {
-      rules?: Record<string, [number, { patterns?: { regex?: string }[] }]>;
+      rules?: Record<string, [number, { refuse?: string[] }?]>;
     };
-    const [severity, options] = config.rules?.["no-restricted-imports"] ?? [];
+    const [severity, options] = config.rules?.["beekeeping/imports"] ?? [];
     expect(severity).toBe(2);
-    const regexes = (options?.patterns ?? []).map((pattern) => pattern.regex);
-    expect(regexes.some((regex) => regex?.includes("@beekeeping/"))).toBe(true);
+    expect(
+      options?.refuse?.some((name) => name.startsWith("@beekeeping/")),
+    ).toBe(true);
   });
 
   if (dir.startsWith("packages/")) {

@@ -21,28 +21,35 @@ export type Fail<
   readonly reason: Reason;
 } & Details;
 
-export type Result<Fields extends object, Reason extends string> =
-  Ok<Fields> | Fail<Reason>;
+export type Result<
+  Fields extends object,
+  Reason extends string,
+  Details extends object = Record<never, never>,
+> = Ok<Fields> | Fail<Reason, Details>;
 
-/** Fields of a success or details of a failure can't reuse these names. */
-type WithoutResultKeys = {
+/**
+ * Fields and details are plain objects of named values, as in
+ * ok({ entryId }). They are copied with a spread, which would drop the
+ * methods of a class instance such as a Date or a Uint8Array, so pass those
+ * as a named field instead: ok({ pdf: bytes }). The names ok and reason are
+ * taken.
+ */
+type NamedValues = Record<string, unknown> & {
   readonly ok?: never;
   readonly reason?: never;
 };
 
 export function ok(): Ok;
-export function ok<Fields extends object & WithoutResultKeys>(
-  fields: Fields,
-): Ok<Fields>;
+export function ok<Fields extends NamedValues>(fields: Fields): Ok<Fields>;
 export function ok(fields?: object): Ok<object> {
   return { ...fields, ok: true };
 }
 
 export function fail<Reason extends string>(reason: Reason): Fail<Reason>;
-export function fail<
-  Reason extends string,
-  Details extends object & WithoutResultKeys,
->(reason: Reason, details: Details): Fail<Reason, Details>;
+export function fail<Reason extends string, Details extends NamedValues>(
+  reason: Reason,
+  details: Details,
+): Fail<Reason, Details>;
 export function fail(reason: string, details?: object): Fail<string, object> {
   return { ...details, ok: false, reason };
 }

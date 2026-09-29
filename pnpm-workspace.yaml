@@ -21,3 +21,7 @@ catalog:
 peerDependencyRules:
   allowedVersions:
     eslint-plugin-jsx-a11y>eslint: "10"
+
+# Refuse to install on a Node version outside the engines range in
+# package.json.
+engineStrict: true

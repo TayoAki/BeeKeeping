@@ -111,7 +111,9 @@ phase links.
 ### Commands and checks
 
 The repo pins Node 22 in `.nvmrc` and pnpm 10.33.0 in the `packageManager`
-field of `package.json`. Run every command from the repo root.
+field of `package.json`. pnpm refuses to install on Node older than 22.18,
+the first release that runs TypeScript files without a flag. Run every
+command from the repo root.
 
 | Command | What it does |
 |---|---|
@@ -132,7 +134,9 @@ How the workspace fits together:
 
 - `apps/web`, `apps/worker` and `packages/*` follow the layers in
   `docs/build-plan.md`. `eslint.config.js` refuses imports that cross a
-  layer boundary, and `tests/layer-boundaries.test.ts` proves each rule.
+  layer boundary, whether by package name, by relative path or through
+  `import()`. `tests/layer-boundaries.test.ts` checks every layer against
+  its own copy of the policy.
 - Packages export their TypeScript source from `src/index.ts`. Relative
   imports name the real `.ts` file, and ESLint refuses `.js`, so plain Node,
   Vitest and Next.js all run the same source with no build step.
