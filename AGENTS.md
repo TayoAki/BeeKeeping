@@ -155,6 +155,9 @@ How the workspace fits together:
   resolve review threads.
 - Claude Code assigns the task branch. Per `new-feature`, skip its worktree
   steps 3 and 4.
+- When a cloud session starts, `.claude/hooks/session-start.sh` runs
+  `pnpm install --frozen-lockfile` and installs the `ocr` CLI if it's
+  missing, so the checks run straight away. Local sessions skip the hook.
 - Cloud sessions have no display. Use the headless path in
   `evidence-driven-testing` and keep evidence in `.artifacts/<task-name>/`,
   which is gitignored.

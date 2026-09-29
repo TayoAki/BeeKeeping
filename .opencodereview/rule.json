@@ -16,6 +16,11 @@
       "merge_system_rule": true
     },
     {
+      "path": ".claude/settings.json",
+      "rule": "Claude Code settings shared by every session. Check that each hook points at a script in .claude/hooks, that no permission rule allows destructive commands or reading secrets, and that nothing here turns off a check or a hook without a comment in the PR saying why.",
+      "merge_system_rule": true
+    },
+    {
       "path": "**/package.json",
       "rule": "Workspace manifests. Check that:\n- Every package is private, is an ES module, and has a typecheck script that runs tsc.\n- Internal packages export their src entry. A version that several packages share comes from the catalog in pnpm-workspace.yaml.\n- Dependencies follow the layers: services never depend on db, actions, mcp, ui or an app, nothing depends on an app, and only tests use @beekeeping/testing.\n- A new dependency is maintained, pinned to an exact version, and needed by the change.",
       "merge_system_rule": true
