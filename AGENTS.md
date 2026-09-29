@@ -72,10 +72,10 @@ wrote or changed, not to prose you didn't touch.
    rerun the checks.
 5. Push (`git push -u origin <branch>`; after rebasing an already-pushed
    branch, `--force-with-lease`).
-6. Open the PR from `.github/pull_request_template.md`. Its five parts are the
-   acceptance rules, what changed, how it was tested (every claim backed by
-   evidence), before/after proof, and any risks or follow-up work. Run the
-   title and body through `/unslop` before posting.
+6. Open the PR with a body that follows `.github/pull_request_template.md`.
+   Its five parts are the acceptance rules, what changed, how it was tested,
+   before/after proof, and any risks or follow-up work. Back every claim
+   with evidence. Run the title and body through `/unslop` before posting.
 7. Run `/ocr-review` until a review round finds **no critical, high or
    medium issues**.
 8. End by presenting the PR URL.

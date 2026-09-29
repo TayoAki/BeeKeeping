@@ -23,15 +23,17 @@ testing, web, worker, and repo files such as CI, docs and config. -->
 
 <!-- pnpm check and pnpm build, then the proof the task's row asks for.
 .artifacts/<task>/ stays on the machine, so paste the output here or link
-the uploaded capture. Every claim here points at a test or a capture. -->
+the uploaded capture: demo company only, and never a key, token or bank
+number. Every claim here points at a test or a capture. -->
 
 - `pnpm check`:
 - `pnpm build`:
 - Evidence:
-- Review: pending. When /ocr-review stops, replace this line with "Review
-  clean in round N: no critical, high or medium issues in M files.", or,
-  after five rounds without a clean one, with the findings still open. Fill
-  in one table row per round.
+- Review: pending
+
+<!-- When /ocr-review stops, replace "pending" with "clean in round N: no
+critical, high or medium issues in M files", or, after five rounds without
+a clean one, with the findings still open. Add one table row per round. -->
 
 | Round | Mode | Files | Critical | High | Medium | Low | Fixed |
 |---|---|---|---|---|---|---|---|
@@ -45,6 +47,7 @@ pairs or numbers from probe-output.txt. Docs only: say so. -->
 ## Risks and follow-up work
 
 <!-- What could go wrong, what's left for later, medium review findings that
-fall outside the task, and any finding you chose not to fix, with why. -->
+fall outside the task, and any critical or high finding judged wrong, with
+why. -->
 
 -

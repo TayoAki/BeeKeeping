@@ -19,7 +19,9 @@
     "**/*.test.tsx",
     "AGENTS.md",
     ".github/pull_request_template.md",
-    ".claude/skills/ocr-review/SKILL.md"
+    ".claude/skills/ocr-review/SKILL.md",
+    "docs/**/*.md",
+    "CLAUDE.md"
   ],
   "rules": [
     {
@@ -35,6 +37,16 @@
     {
       "path": ".claude/skills/ocr-review/SKILL.md",
       "rule": "BeeKeeping's own review skill. Check that it matches how open-code-review actually behaves (flags, include and exclude, delegation mode), that it agrees with AGENTS.md and docs/execution-plan.md on when a review is clean, and that its text follows the unslop skill.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "docs/**/*.md",
+      "rule": "BeeKeeping's plan documents. Check that a change agrees with AGENTS.md, the other plan documents and the code, that task IDs, dependencies and gate names stay consistent across docs/build-plan.md, docs/execution-plan.md and docs/agent-back-office.md, and that new text follows the unslop skill.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "CLAUDE.md",
+      "rule": "Claude Code's entry file. Check that it still imports AGENTS.md and adds no rule that contradicts it.",
       "merge_system_rule": true
     },
     {
