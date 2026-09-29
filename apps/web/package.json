@@ -10,15 +10,21 @@
     "typecheck": "next typegen && tsc"
   },
   "dependencies": {
+    "@beekeeping/actions": "workspace:*",
     "@beekeeping/db": "workspace:*",
+    "@beekeeping/services": "workspace:*",
+    "better-auth": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

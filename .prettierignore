@@ -1,7 +1,8 @@
 # Prettier formats code and config. Prose, vendored skills, research notes,
-# evidence captures and the lockfile stay as written.
+# evidence captures, the lockfile and drizzle-kit's snapshots stay as written.
 *.md
 .artifacts/
 .claude/skills/
 research/
 pnpm-lock.yaml
+**/drizzle/meta/

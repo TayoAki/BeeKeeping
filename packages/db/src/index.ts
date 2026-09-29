@@ -9,3 +9,4 @@ export {
   type OpenOptions,
 } from "./client.ts";
 export { pingDatabase, type PingFailure } from "./health.ts";
+export * as authSchema from "./schema/auth.ts";

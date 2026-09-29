@@ -167,6 +167,22 @@ Databases:
 - Migrations live in `packages/db/drizzle`. Write the schema in
   `packages/db/src/schema` and run `pnpm --filter @beekeeping/db db:generate`.
 
+Running the web app (`pnpm --filter @beekeeping/web dev`) needs these
+settings. `apps/web/src/server/env.ts` checks them the first time a page or
+a sign-in route needs them, and `/api/health` checks them on every call, so
+a deploy that lacks one fails Railway's health check. A missing setting
+shows a generic error page, and the server log names the setting, never
+its value.
+
+- `DATABASE_URL`: the app's login, from `pnpm -s db:url` locally.
+- `BETTER_AUTH_SECRET`: at least 32 characters, such as the output of
+  `openssl rand -hex 32`. It signs sessions, so never commit or log it.
+- `BETTER_AUTH_URL`: where the app runs, such as `http://localhost:3000`.
+- `RESEND_API_KEY` and `EMAIL_FROM`: without a key, sign-up, sign-in and
+  invitation emails go to JSON files in `BEEKEEPING_OUTBOX_DIR`
+  (`/tmp/beekeeping-outbox` by default). Production needs both, and
+  `EMAIL_FROM` must use a domain Resend has verified.
+
 How the workspace fits together:
 
 - `apps/web`, `apps/worker` and `packages/*` follow the layers in
@@ -177,6 +193,15 @@ How the workspace fits together:
 - Packages export their TypeScript source from `src/index.ts`. Relative
   imports name the real `.ts` file, and ESLint refuses `.js`, so plain Node,
   Vitest and Next.js all run the same source with no build step.
+- Next.js 16 changed APIs you may remember from older versions. Its docs
+  for the installed version live in `apps/web/node_modules/next/dist/docs/`;
+  read the page you need before writing Next.js code.
+- Client code, meaning files that start with `"use client"` and the
+  helpers in `apps/web/src/lib`, imports only the entries of
+  `@beekeeping/actions` that hold rules, such as `@beekeeping/actions/access`.
+  It never imports that package's index, `@beekeeping/db`,
+  `@beekeeping/services` or `apps/web/src/server`, which would pull server
+  code into the browser. `tests/client-imports.test.ts` checks it.
 - Versions that several packages share live in the `catalog` of
   `pnpm-workspace.yaml`. A package asks for one with `"catalog:"`.
 - `tests/workspace.test.ts` fails when a package has no typecheck script,

@@ -4,13 +4,20 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./access": "./src/access/roles.ts",
+    "./auth/name": "./src/auth/name.ts",
+    "./organization/name": "./src/organization/name.ts"
   },
   "scripts": {
     "typecheck": "tsc"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "better-auth": "catalog:"
   }
 }
