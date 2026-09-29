@@ -4,6 +4,7 @@ import path from "node:path";
 import js from "@eslint/js";
 import nextPlugin from "@next/eslint-plugin-next";
 import prettier from "eslint-config-prettier/flat";
+// @ts-expect-error eslint-plugin-jsx-a11y ships no types.
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
 import { defineConfig, globalIgnores } from "eslint/config";
@@ -115,8 +116,9 @@ function packageOf(file) {
  * - A module on the layer's refuse list is an error.
  * - A relative path into another package is an error, so a layer can't be
  *   crossed by path instead of by name.
- * - A relative path that ends in .js is an error. TypeScript maps it to the
- *   .ts file, but plain Node can't.
+ * - In a TypeScript file, a relative path that ends in .js, .jsx, .mjs or
+ *   .cjs is an error. TypeScript maps it to the .ts file, but plain Node
+ *   can't.
  * @type {import("eslint").Rule.RuleModule}
  */
 const importsRule = {
@@ -146,6 +148,7 @@ const importsRule = {
     const options = context.options[0] ?? {};
     const refuse = options.refuse ?? [];
     const from = packageOf(context.filename);
+    const fromTypeScript = /\.[cm]?tsx?$/.test(context.filename);
 
     /**
      * @param {import("estree").Node} node
@@ -154,7 +157,9 @@ const importsRule = {
     function check(node, specifier) {
       if (typeof specifier !== "string") return;
       if (specifier.startsWith(".")) {
-        if (specifier.endsWith(".js")) {
+        // TypeScript maps ./money.js to money.ts, but plain Node can't. A
+        // JavaScript file may still import a real JavaScript file.
+        if (fromTypeScript && /\.[cm]?jsx?$/.test(specifier)) {
           context.report({ node, messageId: "relativeJs" });
         }
         const target = path.resolve(path.dirname(context.filename), specifier);
@@ -215,6 +220,7 @@ const importsRule = {
 
 const scriptFiles = "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}";
 
+/** @type {import("eslint").Linter.Config[]} */
 const layerConfigs = layers.flatMap((layer) => [
   {
     name: `beekeeping/layers/${layer.folder}`,

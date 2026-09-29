@@ -56,6 +56,9 @@ importers:
       '@next/eslint-plugin-next':
         specifier: 'catalog:'
         version: 16.3.7(eslint@10.11.0)
+      '@types/estree':
+        specifier: 1.0.9
+        version: 1.0.9
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.4

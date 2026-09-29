@@ -219,6 +219,22 @@ describe("relative imports", () => {
     expect(await importErrors(file, `import "${module}";\n`)).toEqual([]);
   });
 
+  it("a TypeScript file names .mts and .cts files too", async () => {
+    const file = "packages/services/src/example.ts";
+    expect(await importErrors(file, 'import "./money.mjs";')).toEqual([
+      "relativeJs",
+    ]);
+    expect(await importErrors(file, 'import "./money.cjs";')).toEqual([
+      "relativeJs",
+    ]);
+  });
+
+  it("a JavaScript file may import a real JavaScript file", async () => {
+    expect(
+      await importErrors("scripts/tool.mjs", 'import "./helper.js";'),
+    ).toEqual([]);
+  });
+
   it.each([
     "packages/services/src/example.ts",
     "packages/actions/src/shared/example.ts",

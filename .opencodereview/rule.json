@@ -86,6 +86,16 @@
       "merge_system_rule": true
     },
     {
+      "path": "packages/ui/**",
+      "rule": "BeeKeeping's shared components. Check that:\n- Components render what they are given. They don't load data, call actions or read the session.\n- They meet WCAG 2.1 AA: labelled controls, keyboard access, visible focus, focus that returns when a dialog closes, and enough contrast in both themes.\n- Amounts arrive formatted by the money service. No floating-point math on amounts.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "packages/testing/**",
+      "rule": "BeeKeeping's test helpers: factories, the demo company and the ledger property suite. Check that:\n- Data comes from the demo company only. No real names, keys, bank numbers or customer data.\n- Anything that posts goes through postEntry, so balances come from the ledger.\n- Nothing depends on the current date without a fixed clock.",
+      "merge_system_rule": true
+    },
+    {
       "path": "apps/web/**",
       "rule": "BeeKeeping's web app is a thin layer over actions. Check that:\n- Server actions and route handlers only parse input with zod, build the action context from the session and call one action. Business rules found here belong in packages/actions.\n- No secret, key or bank number reaches a client component, a log or an error page.\n- Pages meet WCAG 2.1 AA: labelled controls, keyboard access, visible focus and enough contrast in both themes.\n- Amounts are formatted through the money service, never with floating-point math.",
       "merge_system_rule": true
