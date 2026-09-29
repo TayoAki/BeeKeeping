@@ -4,29 +4,63 @@
 // Docker. CI uses its own Postgres service instead.
 //
 //   node scripts/local-postgres.ts start | stop | status | url
+//
+// One server serves every checkout and worktree on the machine, so stop
+// stops it for all of them. Each checkout gets its own development database.
 
 import { spawnSync } from "node:child_process";
-import { chownSync, existsSync, mkdirSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  chownSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const port = Number(process.env.BEEKEEPING_PG_PORT ?? 54320);
 const home = process.env.BEEKEEPING_PG_DIR ?? "/tmp/beekeeping-postgres";
 const dataDir = join(home, "data");
 const logFile = join(home, "postgres.log");
+const lockDir = `${home}.lock`;
 
 /** The superuser URL of the throwaway server. */
 export const localAdminUrl = `postgres://postgres@127.0.0.1:${port}/postgres`;
 
+/**
+ * This checkout's development database, such as beekeeping_dev_3f9a0c1d. Each
+ * worktree has its own, so migrations on one branch never land in another's.
+ */
+export function localDevelopmentDatabase(): string {
+  const checkout = resolve(import.meta.dirname, "..", "..", "..");
+  const hash = createHash("sha256").update(checkout).digest("hex").slice(0, 8);
+  return `beekeeping_dev_${hash}`;
+}
+
+export function localDevelopmentUrl(): string {
+  return `postgres://postgres@127.0.0.1:${port}/${localDevelopmentDatabase()}`;
+}
+
+/** Version folders as numbers, so 16 wins over 9.6 and our pinned 16 first. */
+function versionFolders(): string[] {
+  const root = "/usr/lib/postgresql";
+  if (!existsSync(root)) return [];
+  const versions = readdirSync(root)
+    .filter((name) => /^\d+(\.\d+)?$/.test(name))
+    .sort((a, b) => Number(b) - Number(a));
+  const pinned = versions.filter((version) => version === "16");
+  const others = versions.filter((version) => version !== "16");
+  return [...pinned, ...others].map((version) => `${root}/${version}/bin`);
+}
+
 function binDir(): string {
   const candidates = [
     process.env.BEEKEEPING_PG_BIN,
-    ...(existsSync("/usr/lib/postgresql")
-      ? readdirSync("/usr/lib/postgresql")
-          .sort()
-          .reverse()
-          .map((version) => `/usr/lib/postgresql/${version}/bin`)
-      : []),
+    ...versionFolders(),
     "/opt/homebrew/opt/postgresql@16/bin",
     "/usr/local/opt/postgresql@16/bin",
   ];
@@ -61,46 +95,77 @@ function isReady(): boolean {
   return run("pg_isready", ["-h", "127.0.0.1", "-p", String(port)]).ok;
 }
 
-/** Starts the server if it isn't running and returns its superuser URL. */
-export function startLocalPostgres(): string {
-  if (isReady()) return localAdminUrl;
-
-  if (!existsSync(join(dataDir, "PG_VERSION"))) {
-    mkdirSync(dataDir, { recursive: true });
-    if (asRoot) {
-      const owner = spawnSync("id", ["-u", "postgres"], { encoding: "utf8" });
-      const group = spawnSync("id", ["-g", "postgres"], { encoding: "utf8" });
-      for (const dir of [home, dataDir]) {
-        chownSync(dir, Number(owner.stdout), Number(group.stdout));
-      }
+/**
+ * Holds a lock while it starts the server, so two test runs starting at once
+ * don't both run initdb. A lock older than two minutes belongs to a run that
+ * died, so it's taken over.
+ */
+async function withLock<T>(work: () => T): Promise<T> {
+  mkdirSync(dirname(lockDir), { recursive: true });
+  const deadline = Date.now() + 120_000;
+  for (;;) {
+    try {
+      mkdirSync(lockDir);
+      break;
+    } catch {
+      const stale =
+        existsSync(lockDir) && Date.now() - statSync(lockDir).mtimeMs > 120_000;
+      if (stale) rmSync(lockDir, { recursive: true, force: true });
+      else if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for ${lockDir}`);
+      } else await sleep(200);
     }
-    const init = run("initdb", [
-      "-D",
-      dataDir,
-      "-U",
-      "postgres",
-      "--auth=trust",
-      "--encoding=UTF8",
-      "--locale=C.UTF-8",
-    ]);
-    if (!init.ok) throw new Error(`initdb failed:\n${init.output}`);
   }
+  try {
+    return work();
+  } finally {
+    rmSync(lockDir, { recursive: true, force: true });
+  }
+}
 
-  const start = run("pg_ctl", [
+function initialize(): void {
+  mkdirSync(dataDir, { recursive: true });
+  if (asRoot) {
+    const owner = spawnSync("id", ["-u", "postgres"], { encoding: "utf8" });
+    const group = spawnSync("id", ["-g", "postgres"], { encoding: "utf8" });
+    for (const dir of [home, dataDir]) {
+      chownSync(dir, Number(owner.stdout), Number(group.stdout));
+    }
+  }
+  const init = run("initdb", [
     "-D",
     dataDir,
-    "-l",
-    logFile,
-    "-w",
-    "-o",
-    `-p ${port} -k "${home}" -c listen_addresses=127.0.0.1`,
-    "start",
+    "-U",
+    "postgres",
+    "--auth=trust",
+    "--encoding=UTF8",
+    "--locale=C.UTF-8",
   ]);
-  // Another test run may have started it a moment ago.
-  if (!start.ok && !isReady()) {
-    throw new Error(`Postgres didn't start:\n${start.output}`);
-  }
-  return localAdminUrl;
+  if (!init.ok) throw new Error(`initdb failed:\n${init.output}`);
+}
+
+/** Starts the server if it isn't running and returns its superuser URL. */
+export async function startLocalPostgres(): Promise<string> {
+  if (isReady()) return localAdminUrl;
+  return withLock(() => {
+    // Another run may have started it while this one waited for the lock.
+    if (isReady()) return localAdminUrl;
+    if (!existsSync(join(dataDir, "PG_VERSION"))) initialize();
+    const start = run("pg_ctl", [
+      "-D",
+      dataDir,
+      "-l",
+      logFile,
+      "-w",
+      "-o",
+      `-p ${port} -k "${home}" -c listen_addresses=127.0.0.1`,
+      "start",
+    ]);
+    if (!start.ok && !isReady()) {
+      throw new Error(`Postgres didn't start:\n${start.output}`);
+    }
+    return localAdminUrl;
+  });
 }
 
 export function stopLocalPostgres(): void {
@@ -113,17 +178,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const command = process.argv[2] ?? "";
   switch (command) {
     case "start":
-      console.log(`Postgres is running at ${startLocalPostgres()}`);
+      console.log(`Postgres is running at ${await startLocalPostgres()}`);
+      console.log(`This checkout's database: ${localDevelopmentUrl()}`);
       break;
     case "stop":
       stopLocalPostgres();
-      console.log("Postgres stopped.");
+      console.log("Postgres stopped, for every checkout on this machine.");
       break;
     case "status":
       console.log(isReady() ? `running at ${localAdminUrl}` : "stopped");
       break;
     case "url":
-      console.log(localAdminUrl);
+      console.log(localDevelopmentUrl());
       break;
     default:
       console.error("Usage: local-postgres.ts start | stop | status | url");

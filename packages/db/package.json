@@ -6,13 +6,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./migrate": "./src/migrate.ts",
-    "./testing": "./src/testing/test-database.ts"
+    "./testing": "./src/testing/test-database.ts",
+    "./testing/global-setup": "./src/testing/global-setup.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.ts",
     "db:start": "node scripts/local-postgres.ts start",
     "db:stop": "node scripts/local-postgres.ts stop",
+    "db:url": "node scripts/local-postgres.ts url",
     "typecheck": "tsc"
   },
   "devDependencies": {

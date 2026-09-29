@@ -12,7 +12,8 @@ export const migrationsFolder = join(import.meta.dirname, "..", "drizzle");
  * changes nothing.
  */
 export async function migrateDatabase(url: string): Promise<void> {
-  const { db, close } = openDatabase(url, { max: 1 });
+  // Migrations create tables and the app's role, so they run as the owner.
+  const { db, close } = openDatabase(url, { as: "owner", max: 1 });
   try {
     await migrate(db, { migrationsFolder });
   } finally {

@@ -125,8 +125,9 @@ command from the repo root.
 | `pnpm test` | Runs Vitest in every package and the repo tests in `tests/`. A test marked `.only` fails the run. |
 | `pnpm build` | Builds the web app. |
 | `pnpm check` | Runs typecheck, lint, format:check and test, in that order. |
-| `pnpm db:start` | Starts the throwaway Postgres on port 54320, with its files in `/tmp/beekeeping-postgres`. `pnpm db:stop` stops it. |
-| `pnpm db:migrate` | Applies pending migrations to `DATABASE_URL`, or to `beekeeping_dev` on the throwaway Postgres when it isn't set. |
+| `pnpm db:start` | Starts the throwaway Postgres on port 54320, with its files in `/tmp/beekeeping-postgres`. `pnpm db:stop` stops it for every checkout on the machine. |
+| `pnpm db:migrate` | Applies pending migrations to `DATABASE_URL`, or to this checkout's development database on the throwaway Postgres when it isn't set. |
+| `pnpm db:url` | Prints this checkout's development database URL, for `DATABASE_URL`. |
 
 A task is ready for review when `pnpm check` and `pnpm build` pass. CI runs
 the same steps on every PR and on pushes to `main` and `claude/**`, in
@@ -136,10 +137,17 @@ the same steps on every PR and on pushes to `main` and `claude/**`, in
 Databases:
 
 - The throwaway Postgres runs the Postgres 16 that the cloud image has, so
-  it needs no Docker. Tests and `pnpm db:migrate` start it when needed.
-- Each test run migrates one template database, and each test file clones it
-  with `createTestDatabase()` from `@beekeeping/db/testing`. Files never share
-  rows, and worktrees never share a database.
+  it needs no Docker. Tests and `pnpm db:migrate` start it when needed. One
+  server serves every checkout, and each checkout gets its own development
+  database, named after its path.
+- The app's connections start as the `beekeeping_app` role, so row-level
+  security covers every query. Migrations and test setup connect as the
+  owner.
+- Each test project migrates one template database, and each test file
+  clones it with `createTestDatabase()` from `@beekeeping/db/testing`. Files
+  never share rows. A package whose tests need a database adds
+  `@beekeeping/db/testing/global-setup` to its Vitest `globalSetup`, as
+  `apps/web` does.
 - Set `TEST_DATABASE_ADMIN_URL` to run the tests on another server, as CI
   does. Never point it at a server with real data: tests create and drop
   databases there.
