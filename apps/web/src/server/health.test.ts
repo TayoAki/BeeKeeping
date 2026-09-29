@@ -101,6 +101,23 @@ describe("the health check", () => {
     }
   });
 
+  it("says to use sslmode when DATABASE_URL has an ssl setting it refuses", () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv(
+      "DATABASE_URL",
+      "postgres://app:SecretPass9@db.example.test/books?ssl=require",
+    );
+    try {
+      expect(appDatabase()).toBeUndefined();
+      const text = JSON.stringify(logged.mock.calls);
+      expect(text).toContain("sslmode");
+      expect(text).not.toContain("SecretPass9");
+    } finally {
+      vi.unstubAllEnvs();
+      logged.mockRestore();
+    }
+  });
+
   it("answers 503 when no database is configured", async () => {
     const response = await healthResponse(undefined);
     expect(response.status).toBe(503);
