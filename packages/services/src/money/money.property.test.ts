@@ -5,11 +5,12 @@ import { money } from "../index.ts";
 
 // FC_SEED and FC_RUNS repeat or lengthen a run. A failure prints its seed.
 // A mistyped value fails loudly instead of running no cases.
+// fast-check reports negative seeds too, so a seed may be negative.
 function wholeNumber(name: string, fallback?: number): number | undefined {
   const text = process.env[name];
   if (text === undefined || text === "") return fallback;
   const value = Number(text);
-  if (!Number.isSafeInteger(value) || value < 0) {
+  if (!Number.isSafeInteger(value)) {
     throw new Error(
       `${name} must be a whole number, not ${JSON.stringify(text)}`,
     );

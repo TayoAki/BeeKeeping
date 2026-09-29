@@ -12,6 +12,7 @@ export {
   divideHalfUp,
   multiply,
   parseDecimal,
+  times,
   toMinor,
   type Decimal,
 } from "./decimal.ts";

@@ -116,6 +116,24 @@ describe("rounding half up", () => {
     });
   });
 
+  it.each([
+    ["1000", "0.0449", "USD", 4490n, "1,000 boxes at $0.0449"],
+    ["12", "19.9950", "USD", 23994n, "12 at $19.995"],
+    ["3", "0.045", "USD", 14n, "3 at $0.045 is $0.135, rounded once"],
+    ["-3", "0.045", "USD", -14n, "a credit line rounds away from zero"],
+    ["2.5", "1.25", "JPY", 3n, "2.5 at ¥1.25 is ¥3.125"],
+  ] as const)(
+    "%s × %s %s rounds once to %i (%s)",
+    (quantity, price, currency, minor, _why) => {
+      expect(
+        toMinor(money.times(decimal(quantity), decimal(price)), currency),
+      ).toEqual({
+        ok: true,
+        minor,
+      });
+    },
+  );
+
   it("refuses results too large for a Postgres bigint", () => {
     expect(toMinor(decimal("92233720368547758.08"), "USD")).toEqual({
       ok: false,
@@ -129,11 +147,40 @@ describe("rounding half up", () => {
       ok: true,
       minor: money.MAX_MINOR,
     });
+    expect(toMinor(decimal("-92233720368547758.08"), "USD")).toEqual({
+      ok: true,
+      minor: money.MIN_MINOR,
+    });
+    expect(toMinor(decimal("-92233720368547758.09"), "USD")).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+    expect(multiply(-1000n, decimal("99999999999999999999"))).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
   });
 
   it("refuses a Decimal with a negative or fractional scale", () => {
     expect(() => toMinor({ units: 1n, scale: -1 }, "USD")).toThrow(RangeError);
     expect(() => multiply(100n, { units: 1n, scale: 1.5 })).toThrow(RangeError);
+  });
+
+  it("reads decimals with or without a leading digit", () => {
+    expect(money.parseDecimal(".5")).toEqual({
+      ok: true,
+      value: { units: 5n, scale: 1 },
+    });
+    expect(money.parseDecimal("-0.045")).toEqual({
+      ok: true,
+      value: { units: -45n, scale: 3 },
+    });
+    for (const text of [".", "", "-", "1.", "1e3", "1,000"]) {
+      expect(money.parseDecimal(text)).toEqual({
+        ok: false,
+        reason: "invalid_decimal",
+      });
+    }
   });
 
   it("needs a positive denominator", () => {
@@ -155,6 +202,8 @@ describe("parse", () => {
     ["12.50 USD", "USD", 1250n],
     ["usd 12.50", "USD", 1250n],
     ["CA$5", "CAD", 500n],
+    ["$5", "CAD", 500n],
+    ["12.50 usd", "USD", 1250n],
     ["+7", "USD", 700n],
     [".5", "USD", 50n],
     ["12.5000", "USD", 1250n],
@@ -190,6 +239,9 @@ describe("parse", () => {
     ["-", "invalid"],
     ["()", "invalid"],
     ["(-)", "invalid"],
+    ["12.50)", "invalid"],
+    ["(12.50", "invalid"],
+    ["(+12)", "invalid"],
     ["12.505", "too_many_decimals"],
     ["92233720368547758.08", "out_of_range"],
     ["-92233720368547758.09", "out_of_range"],

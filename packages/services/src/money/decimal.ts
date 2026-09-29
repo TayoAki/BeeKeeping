@@ -9,13 +9,15 @@ import { exponentOf, type CurrencyCode } from "./currencies.ts";
  */
 export type Decimal = { readonly units: bigint; readonly scale: number };
 
-/** Reads a plain decimal such as "8.875", "-0.5" or "12". */
+/** Reads a plain decimal such as "8.875", "-0.5", ".5" or "12". */
 export function parseDecimal(
   text: string,
 ): Result<{ value: Decimal }, "invalid_decimal"> {
-  const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(text.trim());
-  if (!match) return fail("invalid_decimal");
-  const [, sign = "", whole = "", fraction = ""] = match;
+  const match = /^([+-]?)(\d*)(?:\.(\d+))?$/.exec(text.trim());
+  const [, sign = "", whole = "", fraction = ""] = match ?? [];
+  if (!match || (whole === "" && fraction === "")) {
+    return fail("invalid_decimal");
+  }
   return ok({
     value: {
       units: BigInt(`${sign}${whole}${fraction}`),
@@ -74,8 +76,21 @@ export function toMinor(
 }
 
 /**
- * An amount in minor units times an exact factor, rounded half up, in the
- * same currency: quantity times unit price, or amount times a tax rate.
+ * The exact product of two decimals, with no rounding: 3 × 0.045 is 0.135.
+ * A line's quantity times its unit price uses it, since a unit price may
+ * carry more decimals than the currency. Round the product once with
+ * toMinor.
+ */
+export function times(a: Decimal, b: Decimal): Decimal {
+  checkScale(a);
+  checkScale(b);
+  return { units: a.units * b.units, scale: a.scale + b.scale };
+}
+
+/**
+ * An amount already in minor units times an exact factor, such as a tax
+ * rate, rounded half up to minor units of the same currency. For quantity
+ * times a unit price, use times and then toMinor, so the line rounds once.
  * Converting to another currency changes the minor unit, so it is not a
  * multiply. A result too large for a Postgres bigint is out of range.
  */
