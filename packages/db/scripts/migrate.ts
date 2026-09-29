@@ -65,7 +65,10 @@ async function ensureLocalAppLogin(): Promise<void> {
 function describe(url: string): string {
   try {
     const { host, port, database } = parse(url);
-    return `${host ?? "the local socket"}:${port ?? "5432"}/${database ?? ""}`;
+    // parse gives an empty string, not null, for a part the URL leaves out.
+    // pg then reads PGHOST and PGPORT, or uses localhost and 5432.
+    const server = `${host || process.env.PGHOST || "localhost"}:${port || process.env.PGPORT || "5432"}`;
+    return `${server}/${database ?? ""}`;
   } catch {
     return "the configured database";
   }

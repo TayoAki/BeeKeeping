@@ -87,15 +87,16 @@ describe("the health check", () => {
 
   it("answers 503, and logs no part of the URL, when DATABASE_URL can't be read", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const saved = process.env.DATABASE_URL;
-    process.env.DATABASE_URL = "postgres://app:SecretPass9@[broken/books";
+    // stubEnv puts an unset variable back as unset. Assigning undefined to
+    // process.env would store the text "undefined".
+    vi.stubEnv("DATABASE_URL", "postgres://app:SecretPass9@[broken/books");
     try {
       const handle = appDatabase();
       expect(handle).toBeUndefined();
       expect((await healthResponse(handle)).status).toBe(503);
       expect(JSON.stringify(logged.mock.calls)).not.toContain("SecretPass9");
     } finally {
-      process.env.DATABASE_URL = saved;
+      vi.unstubAllEnvs();
       logged.mockRestore();
     }
   });

@@ -1,6 +1,6 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { parseIntoClientConfig } from "pg-connection-string";
+import { parse, toClientConfig } from "pg-connection-string";
 
 import * as schema from "./schema/index.ts";
 
@@ -36,14 +36,23 @@ function logError(error: Error & { code?: string }): void {
 }
 
 /**
- * Reads the URL with pg's own parser, which accepts every form pg does and
- * keeps the URL, password included, out of its errors. pg would let options
- * in the URL replace the ones passed beside it and drop the role, so the
- * URL's options come first and the role goes last, where Postgres lets it
- * win.
+ * Reads the URL with pg's own parser, which keeps the URL, password
+ * included, out of its errors. pg would let options in the URL replace the
+ * ones passed beside it and drop the role, so the URL's options come first
+ * and the role goes last, where Postgres lets it win.
  */
 function withAppRole(url: string): pg.PoolConfig {
-  const config = parseIntoClientConfig(url);
+  const parsed = parse(url);
+  // toClientConfig drops an ssl value it reads as text, and pg would then
+  // connect without TLS. pg reads ssl=no-verify as TLS that doesn't check
+  // the certificate, so that stays, and any other text is refused.
+  if (parsed.ssl === "no-verify") parsed.ssl = { rejectUnauthorized: false };
+  if (typeof parsed.ssl === "string") {
+    throw new Error(
+      "The database URL's ssl setting isn't one BeeKeeping reads. Use sslmode, such as sslmode=verify-full.",
+    );
+  }
+  const config = toClientConfig(parsed);
   return {
     ...config,
     options: [config.options, "-c role=beekeeping_app"]

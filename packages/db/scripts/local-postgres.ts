@@ -133,6 +133,35 @@ function lockIsStale(): boolean {
 }
 
 /**
+ * Removes a dead holder's lock. One run at a time does this, and it looks at
+ * the lock again first, so a lock that another run took meanwhile stays.
+ * False when another run is taking over, so this one waits.
+ */
+function takeOver(): boolean {
+  const guard = `${lockDir}.takeover`;
+  try {
+    mkdirSync(guard);
+  } catch (error) {
+    if (errorCode(error) !== "EEXIST") throw error;
+    // A run that died while taking over leaves the guard behind.
+    try {
+      if (Date.now() - statSync(guard).mtimeMs > 10_000) {
+        rmSync(guard, { recursive: true, force: true });
+      }
+    } catch {
+      // The guard went away just now.
+    }
+    return false;
+  }
+  try {
+    if (lockIsStale()) rmSync(lockDir, { recursive: true, force: true });
+    return true;
+  } finally {
+    rmSync(guard, { recursive: true, force: true });
+  }
+}
+
+/**
  * Holds a lock while it starts the server, so two test runs starting at once
  * don't both run initdb. The lock records who holds it, so a lock left by a
  * run that died is taken over at once.
@@ -146,10 +175,7 @@ async function withLock<T>(work: () => T): Promise<T> {
       mkdirSync(lockDir);
     } catch (error) {
       if (errorCode(error) !== "EEXIST") throw error;
-      if (lockIsStale()) {
-        rmSync(lockDir, { recursive: true, force: true });
-        continue;
-      }
+      if (lockIsStale() && takeOver()) continue;
       if (Date.now() > deadline) {
         throw new Error(`Timed out waiting for ${lockDir}`, { cause: error });
       }

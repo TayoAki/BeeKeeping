@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { randomBytes } from "node:crypto";
 
+import pg from "pg";
+
 import { openDatabase } from "./client.ts";
 import { pingDatabase } from "./health.ts";
 import {
@@ -168,6 +170,20 @@ describe("the role check, for a login that can do more than the app", () => {
         server,
         `alter database "${name}" owner to current_user`,
       );
+    }
+  });
+
+  it("fails a pool that doesn't start as beekeeping_app", async () => {
+    const { url } = await login("");
+    // A plain pool never sets the role, so it runs as the bare login.
+    const pool = new pg.Pool({ connectionString: url, max: 1 });
+    try {
+      expect(await pingDatabase(pool)).toEqual({
+        ok: false,
+        reason: "unsafe_role",
+      });
+    } finally {
+      await pool.end();
     }
   });
 

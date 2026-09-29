@@ -14,6 +14,29 @@ describe("openDatabase's URL", () => {
   });
 
   it.each([
+    ["ssl=no-verify", { rejectUnauthorized: false }],
+    ["sslmode=no-verify", { rejectUnauthorized: false }],
+    ["sslmode=disable", false],
+  ])("keeps TLS as pg reads it, for %s", async (setting, ssl) => {
+    const { pool, close } = openDatabase(
+      `postgres://beekeeping_web@db.example.test/books?${setting}`,
+      { onError: () => {} },
+    );
+    expect(pool.options.ssl).toEqual(ssl);
+    await close();
+  });
+
+  it("refuses any other ssl setting, rather than drop TLS", () => {
+    expect(() =>
+      openDatabase(
+        "postgres://beekeeping_web:SecretPass9@db.example.test/books?ssl=require",
+      ),
+    ).toThrow(
+      "The database URL's ssl setting isn't one BeeKeeping reads. Use sslmode, such as sslmode=verify-full.",
+    );
+  });
+
+  it.each([
     // A password with a raw slash or hash, as generated passwords often
     // have, needs percent-encoding in a URL.
     "postgres://beekeeping_web:Zx9/SecretPass9@127.0.0.1/books",
