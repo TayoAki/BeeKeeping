@@ -65,7 +65,8 @@ wrote or changed, not to prose you didn't touch.
 ## Completing a task
 
 1. Keep changes limited to the assigned task.
-2. Run the repo's checks *(repo-specific: list the exact commands here)*.
+2. Run the repo's checks: `pnpm check` and `pnpm build`, as listed under
+   [Commands and checks](#commands-and-checks).
 3. Assemble the evidence captured along the way into before/after pairs.
 4. Commit with a clear message, rebase onto the latest `origin/main`, and
    rerun the checks.
@@ -109,10 +110,36 @@ phase links.
 
 ### Commands and checks
 
-There is no application code yet. Task P0.1 in the execution plan adds the
-toolchain and replaces this paragraph with the exact commands. The plan
-expects `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
-`pnpm test:e2e` and `pnpm db:migrate`.
+The repo pins Node 22 in `.nvmrc` and pnpm 10.33.0 in the `packageManager`
+field of `package.json`. Run every command from the repo root.
+
+| Command | What it does |
+|---|---|
+| `pnpm install --frozen-lockfile` | Installs exactly what the lockfile lists. Run plain `pnpm install` only when you change dependencies. |
+| `pnpm typecheck` | Runs `tsc` on the root files and on every package. |
+| `pnpm lint` | Runs ESLint on the whole repo, layer rules included. A warning fails it. |
+| `pnpm format:check` | Checks Prettier formatting. `pnpm format` fixes it. |
+| `pnpm test` | Runs Vitest in every package and the repo tests in `tests/`. |
+| `pnpm build` | Builds the web app. |
+| `pnpm check` | Runs typecheck, lint, format:check and test, in that order. |
+
+A task is ready for review when `pnpm check` and `pnpm build` pass. CI runs
+the same steps on every PR and on pushes to `main` and `claude/**`, in
+`.github/workflows/ci.yml`. P0.3 adds `pnpm db:migrate` and P0.7 adds
+`pnpm test:e2e`. Each lists its command here.
+
+How the workspace fits together:
+
+- `apps/web`, `apps/worker` and `packages/*` follow the layers in
+  `docs/build-plan.md`. `eslint.config.js` refuses imports that cross a
+  layer boundary, and `tests/layer-boundaries.test.ts` proves each rule.
+- Packages export their TypeScript source from `src/index.ts`. Relative
+  imports name the real `.ts` file, and ESLint refuses `.js`, so plain Node,
+  Vitest and Next.js all run the same source with no build step.
+- Versions that several packages share live in the `catalog` of
+  `pnpm-workspace.yaml`. A package asks for one with `"catalog:"`.
+- `tests/workspace.test.ts` fails when a package has no typecheck script,
+  loosens the strict settings of `tsconfig.base.json`, or has no layer rule.
 
 ### Environment quick reference
 

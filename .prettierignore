@@ -1,0 +1,7 @@
+# Prettier formats code and config. Prose, vendored skills, research notes,
+# evidence captures and the lockfile stay as written.
+*.md
+.artifacts/
+.claude/skills/
+research/
+pnpm-lock.yaml

@@ -6,3 +6,11 @@
 .env
 .env.*
 !.env.example
+
+# Dependencies and build output
+node_modules/
+.next/
+next-env.d.ts
+dist/
+coverage/
+*.tsbuildinfo

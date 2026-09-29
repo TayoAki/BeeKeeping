@@ -10,6 +10,31 @@
   ],
   "rules": [
     {
+      "path": "**/package.json",
+      "rule": "Workspace manifests. Check that:\n- Every package is private, is an ES module, and has a typecheck script that runs tsc.\n- Internal packages export their src entry. A version that several packages share comes from the catalog in pnpm-workspace.yaml.\n- Dependencies follow the layers: services never depend on db, actions, mcp, ui or an app, nothing depends on an app, and only tests use @beekeeping/testing.\n- A new dependency is maintained, pinned to an exact version, and needed by the change.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "rule": "The pnpm workspace file. Check that catalog versions are exact, that every peer dependency or build script exception has a comment saying why, and that the package globs still cover apps/* and packages/*.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "**/tsconfig*.json",
+      "rule": "TypeScript settings. Check that every tsconfig extends tsconfig.base.json, and that no change turns off strict, noUncheckedIndexedAccess or another check the base turns on.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "eslint.config.js",
+      "rule": "Lint settings. Check that the layer rules still match the code-structure skill and AGENTS.md, that every rule turned off or downgraded has a comment saying why, and that tests/layer-boundaries.test.ts covers each boundary the change adds or moves.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "vitest.config.ts",
+      "rule": "Test runner settings. Check that every package's tests still run, that a test focused with .only still fails the run, and that nothing lets CI pass while tests are skipped.",
+      "merge_system_rule": true
+    },
+    {
       "path": "**/*.test.ts",
       "rule": "BeeKeeping tests. Check that:\n- Each acceptance rule the change claims has a test, and the test would fail if the rule broke.\n- Tests build data with the demo company factories. No real names, keys, bank numbers or customer data.\n- Ledger tests check balances through reports or the ledger tables, never by trusting a document's own total.\n- Tests that touch several organizations assert that one organization can't read or change another's rows.\n- No test depends on the current date without fixing the clock.",
       "merge_system_rule": true

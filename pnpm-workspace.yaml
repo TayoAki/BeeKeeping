@@ -1,0 +1,23 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Versions shared by more than one package. A package asks for one with
+# "catalog:" so the whole workspace moves to a new version together.
+catalog:
+  "@next/eslint-plugin-next": 16.3.7
+  "@types/node": 22.20.4
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  next: 16.3.7
+  react: 19.3.0
+  react-dom: 19.3.0
+  typescript: 6.0.3
+  vitest: 5.0.2
+
+# eslint-plugin-jsx-a11y 6.10.2 lists ESLint 9 as its newest peer. It calls
+# none of the APIs that ESLint 10 removed, and eslint-config-next ships it
+# with ESLint 10 as well.
+peerDependencyRules:
+  allowedVersions:
+    eslint-plugin-jsx-a11y>eslint: "10"
