@@ -11,6 +11,10 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "pg": "catalog:"
   }
 }

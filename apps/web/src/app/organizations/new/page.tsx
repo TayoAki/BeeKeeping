@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+import { currencyOptions } from "../../../server/currencies.ts";
 import { requireSignedIn } from "../../../server/session.ts";
 import { NewOrganizationForm } from "./new-organization-form.tsx";
 
@@ -10,7 +12,7 @@ export default async function NewOrganizationPage() {
     <main>
       <h1>Set up your business</h1>
       <p>You&apos;ll be its owner. You can invite your team next.</p>
-      <NewOrganizationForm />
+      <NewOrganizationForm currencies={currencyOptions} />
     </main>
   );
 }

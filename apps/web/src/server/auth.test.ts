@@ -1185,7 +1185,9 @@ describe("a query that fails inside /api/auth", () => {
       ).toBeUndefined();
       const client = new pg.Client({ connectionString: broken.url });
       await client.connect();
-      await client.query("revoke insert on sessions from beekeeping_app");
+      // Better Auth runs as beekeeping_auth, which holds the rights on
+      // sign-in's tables.
+      await client.query("revoke insert on sessions from beekeeping_auth");
       await client.end();
 
       const reply = await failing.browser().post("/sign-in/email", {
@@ -1228,7 +1230,9 @@ describe("Better Auth's own log lines", () => {
       expect(token).not.toBe("");
       const client = new pg.Client({ connectionString: broken.url });
       await client.connect();
-      await client.query("revoke select on sessions from beekeeping_app");
+      // Better Auth runs as beekeeping_auth, which holds the rights on
+      // sign-in's tables.
+      await client.query("revoke select on sessions from beekeeping_auth");
       await client.end();
 
       await browser.get("/get-session");

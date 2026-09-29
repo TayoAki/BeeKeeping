@@ -42,6 +42,32 @@ describe("the health check", () => {
     }
   });
 
+  it("answers 503 when the app's login can't reach sign-in's tables", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    // The answer the role check gives for a login without beekeeping_auth,
+    // which packages/db/src/health.test.ts checks on a real server.
+    const pool = {
+      query: () =>
+        Promise.resolve({ rows: [{ safe: true, reachesAuth: false }] }),
+    };
+    const handle = { pool, db: undefined, close: () => Promise.resolve() };
+    try {
+      const response = await healthResponse(
+        handle as unknown as Parameters<typeof healthResponse>[0],
+      );
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        status: "unavailable",
+        database: "misconfigured",
+      });
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining("can't switch to beekeeping_auth"),
+      );
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it("answers 503 without details when the database doesn't", async () => {
     const handle = openDatabase("postgres://nobody:secret@127.0.0.1:1/none", {
       max: 1,

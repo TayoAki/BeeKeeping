@@ -13,11 +13,15 @@
     "typecheck": "tsc"
   },
   "devDependencies": {
+    "@beekeeping/testing": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "dependencies": {
-    "better-auth": "catalog:"
+    "@beekeeping/db": "workspace:*",
+    "@beekeeping/services": "workspace:*",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:"
   }
 }

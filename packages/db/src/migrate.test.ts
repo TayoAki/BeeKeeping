@@ -16,6 +16,7 @@ import {
 import {
   createEmptyDatabase,
   createTestDatabase,
+  postgresError,
   type TestDatabase,
 } from "./testing/test-database.ts";
 
@@ -37,24 +38,6 @@ function journalTags(): string[] {
     readFileSync(join(migrationsFolder, "meta/_journal.json"), "utf8"),
   ) as { entries: { tag: string }[] };
   return journal.entries.map(({ tag }) => tag);
-}
-
-/**
- * What Postgres said when work failed. Drizzle wraps it in an error whose
- * message is the failed SQL, so the message alone proves nothing.
- */
-async function postgresError(
-  work: Promise<unknown>,
-): Promise<{ message: string; code?: string }> {
-  try {
-    await work;
-  } catch (error) {
-    return ((error as { cause?: unknown }).cause ?? error) as {
-      message: string;
-      code?: string;
-    };
-  }
-  throw new Error("It didn't fail.");
 }
 
 describe("migrations", () => {
@@ -119,6 +102,39 @@ describe("migrations", () => {
       await client.end();
     }
   });
+
+  it.each([
+    ["can log in", () => "alter role beekeeping_auth login"],
+    [
+      "has another role's rights",
+      (other: string) => `grant "${other}" to beekeeping_auth`,
+    ],
+  ])(
+    "refuse to run when beekeeping_auth %s",
+    async (_case, change: (other: string) => string) => {
+      // As above: the change and the check roll back together.
+      const check =
+        readFileSync(join(migrationsFolder, "0002_tenancy.sql"), "utf8").split(
+          "--> statement-breakpoint",
+        )[1] ?? "";
+      expect(check).toContain("use another role''s rights");
+      const client = new pg.Client({ connectionString: empty.url });
+      await client.connect();
+      try {
+        await client.query("begin");
+        const other = uniqueName("bk_other");
+        await client.query(`create role "${other}" nologin`);
+        await client.query(change(other));
+        const error = await postgresError(client.query(check));
+        expect(error.message).toMatch(
+          /^beekeeping_auth can log in, .* or use another role's rights/,
+        );
+      } finally {
+        await client.query("rollback").catch(() => undefined);
+        await client.end();
+      }
+    },
+  );
 });
 
 describe("a migration owner that isn't a superuser", () => {

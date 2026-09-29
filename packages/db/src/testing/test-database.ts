@@ -45,3 +45,21 @@ export function createTestDatabase(): Promise<TestDatabase> {
 export function createEmptyDatabase(): Promise<TestDatabase> {
   return create();
 }
+
+/**
+ * What Postgres said when work failed. Drizzle wraps it in an error whose
+ * message is the failed SQL, so the message alone proves nothing.
+ */
+export async function postgresError(
+  work: Promise<unknown>,
+): Promise<{ message: string; code?: string }> {
+  try {
+    await work;
+  } catch (error) {
+    return ((error as { cause?: unknown }).cause ?? error) as {
+      message: string;
+      code?: string;
+    };
+  }
+  throw new Error("It didn't fail.");
+}

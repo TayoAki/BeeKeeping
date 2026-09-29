@@ -417,7 +417,9 @@ export function getAuth(): Auth {
   if (!instance) {
     const env = readServerEnv(process.env);
     instance = createAuth({
-      db: openDatabase(env.DATABASE_URL).db,
+      // Better Auth's connections run as beekeeping_auth, the only role that
+      // reaches sign-in's tables.
+      db: openDatabase(env.DATABASE_URL, { role: "auth" }).db,
       secret: env.BETTER_AUTH_SECRET,
       baseUrl: env.BETTER_AUTH_URL,
       transport: env.RESEND_API_KEY

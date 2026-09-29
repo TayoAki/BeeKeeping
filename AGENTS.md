@@ -140,20 +140,26 @@ Databases:
   it needs no Docker. Tests and `pnpm db:migrate` start it when needed. One
   server serves every checkout, and each checkout gets its own development
   database, named after its path.
-- The app's connections start as the `beekeeping_app` role, so row-level
-  security covers every query. The app logs in as a login role of its own,
-  a `NOINHERIT` member of `beekeeping_app` with no rights of its own, so
-  even `SET ROLE NONE` leaves it nothing to read. It never logs in as the
-  database owner: the health check answers 503 if it does. Migrations and
-  test setup log in as the owner.
-- On a new server, after the first migration, an admin creates the app's
-  login with `CREATE ROLE beekeeping_web LOGIN NOINHERIT; GRANT beekeeping_app TO beekeeping_web;`,
+- The app's connections start as one of two roles, so row-level security
+  covers every query. `beekeeping_app` reads and writes organizations'
+  data. `beekeeping_auth` is Better Auth's (`openDatabase(url, { role: "auth" })`)
+  and reaches only sign-in's tables, which `beekeeping_app` can't touch.
+  The app logs in as a login role of its own, a `NOINHERIT` member of both
+  with no rights of its own, so even `SET ROLE NONE` leaves it nothing to
+  read. It never logs in as the database owner: the health check answers
+  503 if it does. Migrations and test setup log in as the owner.
+- On a new server, after the migrations, an admin creates the app's login
+  with `CREATE ROLE beekeeping_web LOGIN NOINHERIT; GRANT beekeeping_app, beekeeping_auth TO beekeeping_web;`,
   then sets its password from the secret store with `\password beekeeping_web`
   in psql. That sends only a hash, so the password never reaches the
   server's log or psql's history.
   `DATABASE_URL` logs in as `beekeeping_web`. `MIGRATION_DATABASE_URL`
   logs in as the owner, and only migrations use it. The throwaway Postgres
   gets a `beekeeping_web` with no password from `pnpm db:migrate`.
+- A server set up before migration 0002 has a `beekeeping_web` that holds
+  only `beekeeping_app`. Right after migrating it to 0002, an admin runs
+  `GRANT beekeeping_auth TO beekeeping_web;`. Until then nobody can sign
+  in, and the health check answers 503.
 - Each test project migrates one template database, and each test file
   clones it with `createTestDatabase()` from `@beekeeping/db/testing`. Files
   never share rows. Its `appUrl` logs in the way the app does, for
@@ -166,6 +172,23 @@ Databases:
   databases there.
 - Migrations live in `packages/db/drizzle`. Write the schema in
   `packages/db/src/schema` and run `pnpm --filter @beekeeping/db db:generate`.
+- Every table has row-level security, and `packages/db/src/tenancy.test.ts`
+  fails for one that doesn't, and for a view that skips it. A table that
+  holds an organization's data gets an `org_id` column and
+  `orgIsolation(...)` from `packages/db/src/schema/tenancy.ts`, so
+  `beekeeping_app` sees only the organization its transaction acts for.
+- A new sign-in table gets `authOnly(...)` instead. drizzle-kit writes no
+  grants, and migration 0000 gives every new table to `beekeeping_app`, so
+  its migration also needs `REVOKE ALL ON <table> FROM beekeeping_app;` and
+  `GRANT SELECT, INSERT, UPDATE, DELETE ON <table> TO beekeeping_auth;`,
+  written by hand at its end, as 0002 does.
+- Actions run through `runAction` from `@beekeeping/actions`, which opens a
+  transaction and sets `app.org_id` and `app.user_id` with `set local`.
+  It's the only code that sets them: an action that calls `set_config`
+  itself can reach any organization. Actions still filter by
+  `ctx.orgId`; row-level security catches what they miss. A web server
+  action builds the principal from the session with `runForMember` in
+  `apps/web/src/server/actions.ts`, never from its input.
 
 Running the web app (`pnpm --filter @beekeeping/web dev`) needs these
 settings. `apps/web/src/server/env.ts` checks them the first time a page or

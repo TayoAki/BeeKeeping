@@ -15,8 +15,8 @@ import "./provided.ts";
  * throwaway Postgres starts on demand.
  *
  * The run also gets a login role of its own that works the way the app's
- * does: it can log in and switch to beekeeping_app, and it has no rights of
- * its own.
+ * does: it can log in and switch to beekeeping_app or beekeeping_auth, and
+ * it has no rights of its own.
  */
 export default async function setup(project: TestProject) {
   const serverUrl =
@@ -41,7 +41,10 @@ export default async function setup(project: TestProject) {
       serverUrl,
       `create role "${appLogin.user}" login noinherit password '${appLogin.password}'`,
     );
-    await adminQuery(serverUrl, `grant beekeeping_app to "${appLogin.user}"`);
+    await adminQuery(
+      serverUrl,
+      `grant beekeeping_app, beekeeping_auth to "${appLogin.user}"`,
+    );
   } catch (error) {
     await cleanUp();
     throw error;

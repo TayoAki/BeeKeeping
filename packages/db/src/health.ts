@@ -1,11 +1,13 @@
 import { fail, ok, type Result } from "@beekeeping/services";
 import type pg from "pg";
 
-export type PingFailure = "unreachable" | "unsafe_role";
+export type PingFailure = "unreachable" | "unsafe_role" | "no_auth_role";
 
-// True when the connection runs as beekeeping_app and its login can do no
-// more: it isn't a superuser, can't skip row-level security, doesn't own
-// the database, and can switch to beekeeping_app and to no other role.
+// safe is true when the connection runs as beekeeping_app and its login can
+// do no more: it isn't a superuser, can't skip row-level security, doesn't
+// own the database, and can switch to the app's two roles and to no other.
+// reachesAuth is true when the login can switch to beekeeping_auth, which
+// Better Auth's connections need.
 const roleCheck = `
   select current_user = 'beekeeping_app'
          and not login.rolsuper
@@ -14,16 +16,21 @@ const roleCheck = `
          and not exists (
            select from pg_roles other
             where other.oid <> login.oid
-              and other.rolname <> 'beekeeping_app'
-              and pg_has_role(login.oid, other.oid, 'member')) as safe
+              and other.rolname not in ('beekeeping_app', 'beekeeping_auth')
+              and pg_has_role(login.oid, other.oid, 'member')) as safe,
+         exists (
+           select from pg_roles auth
+            where auth.rolname = 'beekeeping_auth'
+              and pg_has_role(login.oid, auth.oid, 'set')) as "reachesAuth"
     from pg_roles login, pg_database db
    where login.rolname = session_user and db.datname = current_database()`;
 
 /**
  * Asks the database to answer within timeoutMs, and checks that the app's
- * login can't reach past row-level security. The failure carries no error
- * text, so a host name or user name never reaches a health page, and a
- * database that never answers can't hang the check.
+ * login can't reach past row-level security and can reach sign-in's tables.
+ * The failure carries no error text, so a host name or user name never
+ * reaches a health page, and a database that never answers can't hang the
+ * check.
  */
 export async function pingDatabase(
   pool: pg.Pool,
@@ -36,11 +43,13 @@ export async function pingDatabase(
   });
   try {
     const answer = await Promise.race([
-      pool.query<{ safe: boolean }>(roleCheck),
+      pool.query<{ safe: boolean; reachesAuth: boolean }>(roleCheck),
       timeout,
     ]);
     if (answer === "timeout") return fail("unreachable");
-    if (answer.rows[0]?.safe !== true) return fail("unsafe_role");
+    const [row] = answer.rows;
+    if (row?.safe !== true) return fail("unsafe_role");
+    if (!row.reachesAuth) return fail("no_auth_role");
     return ok({ latencyMs: Math.round(performance.now() - started) });
   } catch {
     return fail("unreachable");

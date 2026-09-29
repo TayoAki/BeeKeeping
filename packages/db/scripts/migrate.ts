@@ -40,8 +40,9 @@ async function ensureLocalDevelopmentDatabase(): Promise<string> {
 
 /**
  * The app's login on the throwaway server: it can log in and switch to
- * beekeeping_app, and nothing more. Roles belong to the whole server, and
- * another checkout may be making this one at the same moment.
+ * beekeeping_app or beekeeping_auth, and nothing more. Roles belong to the
+ * whole server, and another checkout may be making this one at the same
+ * moment.
  */
 async function ensureLocalAppLogin(): Promise<void> {
   await asAdmin(async (client) => {
@@ -57,7 +58,9 @@ async function ensureLocalAppLogin(): Promise<void> {
         END IF;
       END
       $$`);
-    await client.query(`grant beekeeping_app to ${localAppLogin}`);
+    await client.query(
+      `grant beekeeping_app, beekeeping_auth to ${localAppLogin}`,
+    );
   });
 }
 

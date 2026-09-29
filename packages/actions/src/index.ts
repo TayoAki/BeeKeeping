@@ -23,6 +23,17 @@ export * as authEmails from "./auth/emails.ts";
 export type { EmailContent } from "./auth/emails.ts";
 export { isPersonName, personNameLimit } from "./auth/name.ts";
 export {
+  DatabaseRefusal,
+  runAction,
+  type ActionContext,
+  type Principal,
+} from "./context.ts";
+export {
+  getOrganizationSettings,
+  setUpOrganization,
+  type OrganizationSettings,
+} from "./organization/settings.ts";
+export {
   isOrganizationName,
   organizationNameLimit,
 } from "./organization/name.ts";

@@ -4,9 +4,12 @@
 // owner, live in @beekeeping/db/migrate.
 export {
   openDatabase,
+  type ConnectionRole,
   type Database,
   type DatabaseHandle,
   type OpenOptions,
+  type Transaction,
 } from "./client.ts";
 export { pingDatabase, type PingFailure } from "./health.ts";
 export * as authSchema from "./schema/auth.ts";
+export { organizationSettings } from "./schema/organization.ts";

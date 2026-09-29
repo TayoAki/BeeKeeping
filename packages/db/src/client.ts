@@ -6,6 +6,21 @@ import * as schema from "./schema/index.ts";
 
 export type Database = NodePgDatabase<typeof schema>;
 
+/** One transaction on a Database, as Database.transaction hands it over. */
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Who a pool's connections run as. "app" reads and writes organizations'
+ * data under row-level security. "auth" is Better Auth's, and reaches only
+ * sign-in's tables.
+ */
+export type ConnectionRole = "app" | "auth";
+
+const roleNames: Record<ConnectionRole, string> = {
+  app: "beekeeping_app",
+  auth: "beekeeping_auth",
+};
+
 export type DatabaseHandle = {
   readonly db: Database;
   readonly pool: pg.Pool;
@@ -13,6 +28,8 @@ export type DatabaseHandle = {
 };
 
 export type OpenOptions = {
+  /** "app" unless the pool is Better Auth's. */
+  readonly role?: ConnectionRole;
   readonly max?: number;
   /** How long to wait for a connection before giving up. */
   readonly connectionTimeoutMs?: number;
@@ -41,7 +58,7 @@ function logError(error: Error & { code?: string }): void {
  * ones passed beside it and drop the role, so the URL's options come first
  * and the role goes last, where Postgres lets it win.
  */
-function withAppRole(url: string): pg.PoolConfig {
+function withRole(url: string, role: ConnectionRole): pg.PoolConfig {
   const parsed = parse(url);
   // toClientConfig drops an ssl value it reads as text, and pg would then
   // connect without TLS. pg reads ssl=no-verify as TLS that doesn't check
@@ -55,21 +72,23 @@ function withAppRole(url: string): pg.PoolConfig {
   const config = toClientConfig(parsed);
   return {
     ...config,
-    options: [config.options, "-c role=beekeeping_app"]
+    options: [config.options, `-c role=${roleNames[role]}`]
       .filter(Boolean)
       .join(" "),
   };
 }
 
 /**
- * Opens the app's connection pool. Each connection starts as beekeeping_app,
- * before any query, so row-level security applies to everything the app
- * sends. The URL logs in as the app's own login role, which has no rights
- * beyond beekeeping_app. It never logs in as the database owner.
+ * Opens a connection pool. Each connection starts as beekeeping_app, or as
+ * beekeeping_auth for Better Auth, before any query, so row-level security
+ * applies to everything it sends. The URL logs in as the app's own login
+ * role, which has no rights beyond those two roles. It never logs in as the
+ * database owner.
  */
 export function openDatabase(
   url: string,
   {
+    role = "app",
     max = 10,
     connectionTimeoutMs = 5_000,
     statementTimeoutMs = 30_000,
@@ -77,7 +96,7 @@ export function openDatabase(
   }: OpenOptions = {},
 ): DatabaseHandle {
   const pool = new pg.Pool({
-    ...withAppRole(url),
+    ...withRole(url, role),
     max,
     connectionTimeoutMillis: connectionTimeoutMs,
     statement_timeout: statementTimeoutMs,

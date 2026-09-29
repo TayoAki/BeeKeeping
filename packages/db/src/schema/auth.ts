@@ -1,7 +1,9 @@
 // The tables Better Auth keeps: people, their sessions and sign-in methods,
 // organizations, memberships with roles, invitations, two-factor secrets and
 // rate limits. Better Auth finds each table by the key it's exported under,
-// in the plural, as in users and sessions.
+// in the plural, as in users and sessions. Only Better Auth's own role,
+// beekeeping_auth, reaches them: each has a row-level security policy for
+// that role alone, and the app's role has no rights on them.
 
 import { sql } from "drizzle-orm";
 import {
@@ -17,6 +19,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { authOnly } from "./tenancy.ts";
+
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -26,15 +30,19 @@ const timestamps = {
     .defaultNow(),
 };
 
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false),
-  image: text("image"),
-  twoFactorEnabled: boolean("two_factor_enabled").default(false),
-  ...timestamps,
-});
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false),
+    ...timestamps,
+  },
+  () => [authOnly("users")],
+);
 
 export const sessions = pgTable(
   "sessions",
@@ -50,7 +58,10 @@ export const sessions = pgTable(
     activeOrganizationId: uuid("active_organization_id"),
     ...timestamps,
   },
-  (table) => [index("sessions_user_id_idx").on(table.userId)],
+  (table) => [
+    index("sessions_user_id_idx").on(table.userId),
+    authOnly("sessions"),
+  ],
 );
 
 export const accounts = pgTable(
@@ -75,7 +86,10 @@ export const accounts = pgTable(
     password: text("password"),
     ...timestamps,
   },
-  (table) => [index("accounts_user_id_idx").on(table.userId)],
+  (table) => [
+    index("accounts_user_id_idx").on(table.userId),
+    authOnly("accounts"),
+  ],
 );
 
 export const verifications = pgTable(
@@ -87,19 +101,26 @@ export const verifications = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ...timestamps,
   },
-  (table) => [index("verifications_identifier_idx").on(table.identifier)],
+  (table) => [
+    index("verifications_identifier_idx").on(table.identifier),
+    authOnly("verifications"),
+  ],
 );
 
-export const organizations = pgTable("organizations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  logo: text("logo"),
-  metadata: text("metadata"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    logo: text("logo"),
+    metadata: text("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  () => [authOnly("organizations")],
+);
 
 export const members = pgTable(
   "members",
@@ -126,6 +147,7 @@ export const members = pgTable(
       "members_role_check",
       sql`${table.role} in ('owner', 'admin', 'bookkeeper', 'viewer')`,
     ),
+    authOnly("members"),
   ],
 );
 
@@ -159,6 +181,7 @@ export const invitations = pgTable(
       "invitations_status_check",
       sql`${table.status} in ('pending', 'accepted', 'rejected', 'canceled')`,
     ),
+    authOnly("invitations"),
   ],
 );
 
@@ -178,12 +201,17 @@ export const twoFactors = pgTable(
   (table) => [
     index("two_factors_user_id_idx").on(table.userId),
     index("two_factors_secret_idx").on(table.secret),
+    authOnly("two_factors"),
   ],
 );
 
-export const rateLimits = pgTable("rate_limits", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  key: text("key").notNull().unique(),
-  count: integer("count").notNull(),
-  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
-});
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull().unique(),
+    count: integer("count").notNull(),
+    lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+  },
+  () => [authOnly("rate_limits")],
+);

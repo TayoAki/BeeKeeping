@@ -35,8 +35,8 @@ export const localAdminUrl = `postgres://postgres@127.0.0.1:${port}/postgres`;
 
 /**
  * The login the app uses on the throwaway server: a member of beekeeping_app
- * with no rights of its own. `pnpm db:migrate` creates it. The server trusts
- * local connections, so it has no password.
+ * and beekeeping_auth with no rights of its own. `pnpm db:migrate` creates
+ * it. The server trusts local connections, so it has no password.
  */
 export const localAppLogin = "beekeeping_web";
 

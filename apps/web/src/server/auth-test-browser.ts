@@ -150,7 +150,8 @@ export function createTestAuth(
   options: { transport?: email.EmailTransport; rateLimit?: boolean } = {},
 ): TestAuth {
   const outbox = mkdtempSync(join(tmpdir(), "beekeeping-outbox-"));
-  const handle = openDatabase(databaseUrl, { max: 5 });
+  // The app's Better Auth pool, as beekeeping_auth.
+  const handle = openDatabase(databaseUrl, { max: 5, role: "auth" });
   const auth = createAuth({
     db: handle.db,
     secret: testSecret,

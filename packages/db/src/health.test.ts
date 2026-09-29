@@ -124,8 +124,12 @@ describe("the role check, for a login that can do more than the app", () => {
     }
   });
 
-  /** A login that can switch to beekeeping_app, with extra rights. */
-  async function login(extra: string, grants: string[] = []) {
+  /** A login that can switch to the app's roles, with extra rights. */
+  async function login(
+    extra: string,
+    grants: string[] = [],
+    roles = ["beekeeping_app", "beekeeping_auth"],
+  ) {
     const user = uniqueName("bk_login");
     const password = randomBytes(12).toString("hex");
     await adminQuery(
@@ -135,7 +139,7 @@ describe("the role check, for a login that can do more than the app", () => {
     made.push(user);
     await adminQuery(
       server,
-      `grant ${["beekeeping_app", ...grants].join(", ")} to "${user}"`,
+      `grant ${[...roles, ...grants].join(", ")} to "${user}"`,
     );
     return { user, url: withLogin(database.url, user, password) };
   }
@@ -149,9 +153,16 @@ describe("the role check, for a login that can do more than the app", () => {
     }
   }
 
-  it("passes a login that can only switch to beekeeping_app", async () => {
+  it("passes a login that can switch to the app's two roles and no other", async () => {
     const { url } = await login("");
     expect((await ping(url)).ok).toBe(true);
+  });
+
+  it("fails a login that can't switch to beekeeping_auth", async () => {
+    // A server set up before P0.5 has a login like this until an admin
+    // grants it beekeeping_auth, and Better Auth can't connect with it.
+    const { url } = await login("", [], ["beekeeping_app"]);
+    expect(await ping(url)).toEqual({ ok: false, reason: "no_auth_role" });
   });
 
   it("fails a login that skips row-level security", async () => {
