@@ -1,9 +1,8 @@
 import { fail, ok, type Result } from "../result.ts";
+import { MAX_MINOR, MIN_MINOR } from "./bounds.ts";
 import { exponentOf, type CurrencyCode } from "./currencies.ts";
 
-/** The range of a Postgres bigint, where amounts are stored. */
-export const MIN_MINOR = -(2n ** 63n);
-export const MAX_MINOR = 2n ** 63n - 1n;
+export { MAX_MINOR, MIN_MINOR } from "./bounds.ts";
 
 /** The exact decimal text of an amount: 123456n in USD is "1234.56". */
 export function toDecimalString(minor: bigint, currency: CurrencyCode): string {
@@ -52,8 +51,12 @@ export function format(
   return formatter(currency, accounting).format(decimal);
 }
 
+const marksByCurrency = new Map<CurrencyCode, string[]>();
+
 /** The marks that may stand next to an amount, such as "USD", "$" or "CA$". */
 function currencyMarks(currency: CurrencyCode): string[] {
+  const cached = marksByCurrency.get(currency);
+  if (cached) return cached;
   const marks = new Set<string>([currency]);
   for (const currencyDisplay of ["symbol", "narrowSymbol"] as const) {
     const part = new Intl.NumberFormat("en-US", {
@@ -66,7 +69,9 @@ function currencyMarks(currency: CurrencyCode): string[] {
     if (part) marks.add(part.value);
   }
   // Longest first, so "CA$" goes before "$" gets a chance.
-  return [...marks].sort((a, b) => b.length - a.length);
+  const sorted = [...marks].sort((a, b) => b.length - a.length);
+  marksByCurrency.set(currency, sorted);
+  return sorted;
 }
 
 function stripMark(text: string, marks: string[], at: "start" | "end") {
@@ -126,7 +131,8 @@ export function parse(
   }
   const negative = parenthesized || signs[0] === "-";
 
-  const match = /^(\d{1,3}(?:,\d{3})+|\d+)?(?:\.(\d+))?$/.exec(text);
+  // Grouped digits can't start with 0: "0,500" is a decimal comma, not 500.
+  const match = /^([1-9]\d{0,2}(?:,\d{3})+|\d+)?(?:\.(\d+))?$/.exec(text);
   const [, whole = "", fraction = ""] = match ?? [];
   if (!match || (whole === "" && fraction === "")) return fail("invalid");
 

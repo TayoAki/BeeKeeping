@@ -4,11 +4,22 @@ import { describe, expect, it } from "vitest";
 import { money } from "../index.ts";
 
 // FC_SEED and FC_RUNS repeat or lengthen a run. A failure prints its seed.
-const seed = process.env.FC_SEED ? Number(process.env.FC_SEED) : undefined;
-fc.configureGlobal({
-  numRuns: Number(process.env.FC_RUNS ?? 500),
-  ...(seed === undefined ? {} : { seed }),
-});
+// A mistyped value fails loudly instead of running no cases.
+function wholeNumber(name: string, fallback?: number): number | undefined {
+  const text = process.env[name];
+  if (text === undefined || text === "") return fallback;
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(
+      `${name} must be a whole number, not ${JSON.stringify(text)}`,
+    );
+  }
+  return value;
+}
+const seed = wholeNumber("FC_SEED");
+const numRuns = wholeNumber("FC_RUNS", 500) ?? 500;
+if (numRuns < 1) throw new Error("FC_RUNS must be 1 or more");
+fc.configureGlobal({ numRuns, ...(seed === undefined ? {} : { seed }) });
 
 const amount = fc.bigInt({ min: money.MIN_MINOR, max: money.MAX_MINOR });
 const currency = fc.constantFrom(...money.currencyCodes);
@@ -35,7 +46,10 @@ describe("money properties", () => {
     fc.assert(
       fc.property(amount, currency, (minor, code) => {
         const parsed = money.parseDecimal(money.toDecimalString(minor, code));
-        expect(parsed.ok && money.toMinor(parsed.value, code)).toBe(minor);
+        expect(parsed.ok && money.toMinor(parsed.value, code)).toEqual({
+          ok: true,
+          minor,
+        });
       }),
     );
   });
@@ -76,11 +90,27 @@ describe("money properties", () => {
     );
   });
 
+  it("rounds a decimal amount to cents in one step", () => {
+    fc.assert(
+      fc.property(
+        fc.bigInt({ min: -(10n ** 15n), max: 10n ** 15n }),
+        fc.integer({ min: 3, max: 8 }),
+        (units, scale) => {
+          const expected = referenceHalfUp(units, 10n ** BigInt(scale - 2));
+          expect(money.toMinor({ units, scale }, "USD")).toEqual({
+            ok: true,
+            minor: expected,
+          });
+        },
+      ),
+    );
+  });
+
   it("leaves an amount alone when multiplied by one", () => {
     fc.assert(
       fc.property(amount, fc.integer({ min: 0, max: 12 }), (minor, scale) => {
         const one = { units: 10n ** BigInt(scale), scale };
-        expect(money.multiply(minor, one)).toBe(minor);
+        expect(money.multiply(minor, one)).toEqual({ ok: true, minor });
       }),
     );
   });

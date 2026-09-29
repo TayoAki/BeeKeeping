@@ -1,4 +1,5 @@
 import { fail, ok, type Result } from "../result.ts";
+import { MAX_MINOR, MIN_MINOR } from "./bounds.ts";
 import { exponentOf, type CurrencyCode } from "./currencies.ts";
 
 /**
@@ -38,18 +39,52 @@ export function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
   return numerator < 0n ? quotient - 1n : quotient + 1n;
 }
 
-/** Rounds an exact decimal amount half up to the currency's minor units. */
-export function toMinor(value: Decimal, currency: CurrencyCode): bigint {
-  const shift = exponentOf(currency) - value.scale;
-  return shift >= 0
-    ? value.units * 10n ** BigInt(shift)
-    : divideHalfUp(value.units, 10n ** BigInt(-shift));
+// A Decimal built by hand with a negative or fractional scale is a bug in
+// the caller, not a failure to report.
+function checkScale(value: Decimal): void {
+  if (!Number.isInteger(value.scale) || value.scale < 0) {
+    throw new RangeError("a Decimal's scale must be a whole number, 0 or more");
+  }
+}
+
+function withinBounds(
+  minor: bigint,
+): Result<{ minor: bigint }, "out_of_range"> {
+  return minor < MIN_MINOR || minor > MAX_MINOR
+    ? fail("out_of_range")
+    : ok({ minor });
 }
 
 /**
- * An amount in minor units times an exact factor, rounded half up to minor
- * units. Quantity times unit price, and amount times a rate, both use it.
+ * Rounds an exact decimal amount half up to the currency's minor units, in
+ * one step, so 0.0049 USD is 0 cents. An amount too large for a Postgres
+ * bigint is out of range.
  */
-export function multiply(minor: bigint, factor: Decimal): bigint {
-  return divideHalfUp(minor * factor.units, 10n ** BigInt(factor.scale));
+export function toMinor(
+  value: Decimal,
+  currency: CurrencyCode,
+): Result<{ minor: bigint }, "out_of_range"> {
+  checkScale(value);
+  const shift = exponentOf(currency) - value.scale;
+  return withinBounds(
+    shift >= 0
+      ? value.units * 10n ** BigInt(shift)
+      : divideHalfUp(value.units, 10n ** BigInt(-shift)),
+  );
+}
+
+/**
+ * An amount in minor units times an exact factor, rounded half up, in the
+ * same currency: quantity times unit price, or amount times a tax rate.
+ * Converting to another currency changes the minor unit, so it is not a
+ * multiply. A result too large for a Postgres bigint is out of range.
+ */
+export function multiply(
+  minor: bigint,
+  factor: Decimal,
+): Result<{ minor: bigint }, "out_of_range"> {
+  checkScale(factor);
+  return withinBounds(
+    divideHalfUp(minor * factor.units, 10n ** BigInt(factor.scale)),
+  );
 }

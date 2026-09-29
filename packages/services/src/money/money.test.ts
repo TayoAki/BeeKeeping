@@ -11,17 +11,57 @@ function decimal(text: string) {
 }
 
 describe("currencies", () => {
-  it.each([
-    ["USD", 2],
-    ["EUR", 2],
-    ["CAD", 2],
-    ["JPY", 0],
-    ["KRW", 0],
-    ["ISK", 0],
-    ["BHD", 3],
-    ["KWD", 3],
-  ] as const)("%s has %i decimal places", (currency, exponent) => {
-    expect(money.exponentOf(currency)).toBe(exponent);
+  // ISO 4217 minor units. Stored amounts depend on these, so a change here
+  // must fail a test.
+  const iso4217 = {
+    AED: 2,
+    ARS: 2,
+    AUD: 2,
+    BHD: 3,
+    BRL: 2,
+    CAD: 2,
+    CHF: 2,
+    CLP: 0,
+    CNY: 2,
+    COP: 2,
+    CZK: 2,
+    DKK: 2,
+    EUR: 2,
+    GBP: 2,
+    HKD: 2,
+    HUF: 2,
+    IDR: 2,
+    ILS: 2,
+    INR: 2,
+    ISK: 0,
+    JOD: 3,
+    JPY: 0,
+    KRW: 0,
+    KWD: 3,
+    MXN: 2,
+    MYR: 2,
+    NOK: 2,
+    NZD: 2,
+    OMR: 3,
+    PEN: 2,
+    PHP: 2,
+    PLN: 2,
+    SAR: 2,
+    SEK: 2,
+    SGD: 2,
+    THB: 2,
+    TND: 3,
+    TRY: 2,
+    TWD: 2,
+    USD: 2,
+    ZAR: 2,
+  } as const;
+
+  it("has the ISO 4217 exponent for every currency, and no others", () => {
+    const exponents = Object.fromEntries(
+      money.currencyCodes.map((code) => [code, money.exponentOf(code)]),
+    );
+    expect(exponents).toEqual(iso4217);
   });
 
   it("reads codes typed in any case and refuses unknown ones", () => {
@@ -53,8 +93,13 @@ describe("rounding half up", () => {
     ["1.2345", "BHD", 1235n],
     ["1.2344", "BHD", 1234n],
     ["12", "USD", 1200n],
+    // Rounded once, not digit by digit: 0.0049 must not become 0.005.
+    ["0.0049", "USD", 0n],
+    ["-0.0049", "USD", 0n],
+    ["2.4449", "USD", 244n],
+    ["0.49", "JPY", 0n],
   ] as const)("%s %s is %i minor units", (amount, currency, minor) => {
-    expect(toMinor(decimal(amount), currency)).toBe(minor);
+    expect(toMinor(decimal(amount), currency)).toEqual({ ok: true, minor });
   });
 
   it.each([
@@ -65,7 +110,30 @@ describe("rounding half up", () => {
     [100n, "0.005", 1n, "half a cent rounds up"],
     [100n, "0.00499999", 0n, "just under half rounds down"],
   ] as const)("%i × %s = %i (%s)", (minor, factor, expected, _why) => {
-    expect(multiply(minor, decimal(factor))).toBe(expected);
+    expect(multiply(minor, decimal(factor))).toEqual({
+      ok: true,
+      minor: expected,
+    });
+  });
+
+  it("refuses results too large for a Postgres bigint", () => {
+    expect(toMinor(decimal("92233720368547758.08"), "USD")).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+    expect(multiply(1000n, decimal("99999999999999999999"))).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+    expect(toMinor(decimal("92233720368547758.07"), "USD")).toEqual({
+      ok: true,
+      minor: money.MAX_MINOR,
+    });
+  });
+
+  it("refuses a Decimal with a negative or fractional scale", () => {
+    expect(() => toMinor({ units: 1n, scale: -1 }, "USD")).toThrow(RangeError);
+    expect(() => multiply(100n, { units: 1n, scale: 1.5 })).toThrow(RangeError);
   });
 
   it("needs a positive denominator", () => {
@@ -81,7 +149,7 @@ describe("parse", () => {
     ["$1,234.56", "USD", 123456n],
     ["-$12.50", "USD", -1250n],
     ["$-12.50", "USD", -1250n],
-    ["−12.50", "USD", -1250n],
+    ["\u221212.50", "USD", -1250n],
     ["(12.50)", "USD", -1250n],
     ["($12.50)", "USD", -1250n],
     ["12.50 USD", "USD", 1250n],
@@ -94,6 +162,8 @@ describe("parse", () => {
     ["1234.00", "JPY", 1234n],
     ["BHD 1.235", "BHD", 1235n],
     ["-0.00", "USD", 0n],
+    ["0", "USD", 0n],
+    ["0.5", "USD", 50n],
     ["92233720368547758.07", "USD", money.MAX_MINOR],
     ["-92233720368547758.08", "USD", money.MIN_MINOR],
   ] as const)("reads %j in %s as %i", (text, currency, minor) => {
@@ -114,6 +184,12 @@ describe("parse", () => {
     ["12.50-", "invalid"],
     ["€12.50", "invalid"],
     ["1e3", "invalid"],
+    ["0,500", "invalid"],
+    ["0,000,001", "invalid"],
+    ["$", "invalid"],
+    ["-", "invalid"],
+    ["()", "invalid"],
+    ["(-)", "invalid"],
     ["12.505", "too_many_decimals"],
     ["92233720368547758.08", "out_of_range"],
     ["-92233720368547758.09", "out_of_range"],
@@ -137,7 +213,7 @@ describe("format", () => {
     [0n, "USD", false, "$0.00"],
     [5n, "USD", false, "$0.05"],
     [1234n, "JPY", false, "¥1,234"],
-    [1235n, "BHD", false, "BHD 1.235"],
+    [1235n, "BHD", false, "BHD\u00a01.235"],
     [money.MAX_MINOR, "USD", false, "$92,233,720,368,547,758.07"],
   ] as const)(
     "shows %i %s (accounting %s) as %j",
