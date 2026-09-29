@@ -4,13 +4,18 @@ import type pg from "pg";
 export type PingFailure = "unreachable" | "unsafe_role";
 
 // True when the connection runs as beekeeping_app and its login can do no
-// more: it isn't a superuser, can't skip row-level security and can't act as
-// the database's owner.
+// more: it isn't a superuser, can't skip row-level security, doesn't own
+// the database, and can switch to beekeeping_app and to no other role.
 const roleCheck = `
   select current_user = 'beekeeping_app'
          and not login.rolsuper
          and not login.rolbypassrls
-         and not pg_has_role(session_user, db.datdba, 'member') as safe
+         and login.oid <> db.datdba
+         and not exists (
+           select from pg_roles other
+            where other.oid <> login.oid
+              and other.rolname <> 'beekeeping_app'
+              and pg_has_role(login.oid, other.oid, 'member')) as safe
     from pg_roles login, pg_database db
    where login.rolname = session_user and db.datname = current_database()`;
 

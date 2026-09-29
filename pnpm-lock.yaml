@@ -153,6 +153,9 @@ importers:
       pg:
         specifier: 'catalog:'
         version: 8.23.0
+      pg-connection-string:
+        specifier: 2.14.0
+        version: 2.14.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

@@ -35,9 +35,11 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
--- The owner switches to the role on every app connection, so it needs the
--- right to. A superuser already has it. A role's creator can grant it to
--- itself. Anyone else needs a superuser to run the GRANT first.
+-- The owner gets the right to switch to the role. The app never logs in as
+-- the owner, but if DATABASE_URL names the owner by mistake, the app still
+-- connects and the health check reports it as misconfigured instead of
+-- unreachable. A superuser already has the right. A role's creator can grant
+-- it to itself. Anyone else needs a superuser to run the GRANT first.
 DO $$
 BEGIN
   IF NOT pg_has_role(current_user, 'beekeeping_app', 'SET') THEN

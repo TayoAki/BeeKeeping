@@ -98,18 +98,25 @@ describe("migrations", () => {
   });
 
   it("refuse to run when beekeeping_app has another role's rights", async () => {
-    const fresh = await createEmptyDatabase();
-    const server = databaseUrl(fresh.url, "postgres");
-    const other = uniqueName("bk_other");
-    await adminQuery(server, `create role "${other}" nologin`);
-    await adminQuery(server, `grant "${other}" to beekeeping_app`);
+    // The check runs inside a transaction that rolls back, so no other run
+    // on this server ever sees beekeeping_app with the extra role.
+    const check =
+      readFileSync(join(migrationsFolder, "0000_baseline.sql"), "utf8").split(
+        "--> statement-breakpoint",
+      )[1] ?? "";
+    expect(check).toContain("use another role''s rights");
+    const client = new pg.Client({ connectionString: empty.url });
+    await client.connect();
     try {
-      const error = await postgresError(migrateDatabase(fresh.url));
+      await client.query("begin");
+      const other = uniqueName("bk_other");
+      await client.query(`create role "${other}" nologin`);
+      await client.query(`grant "${other}" to beekeeping_app`);
+      const error = await postgresError(client.query(check));
       expect(error.message).toMatch(/or use another role's rights/);
     } finally {
-      await adminQuery(server, `revoke "${other}" from beekeeping_app`);
-      await adminQuery(server, `drop role "${other}"`);
-      await fresh.drop();
+      await client.query("rollback").catch(() => undefined);
+      await client.end();
     }
   });
 });

@@ -4,6 +4,7 @@
 // the app's local login, whose URL `pnpm -s db:url` prints.
 
 import pg from "pg";
+import { parse } from "pg-connection-string";
 
 import { migrateDatabase } from "../src/migrate.ts";
 import {
@@ -62,8 +63,12 @@ async function ensureLocalAppLogin(): Promise<void> {
 
 /** Where the migrations went, without the user name or password. */
 function describe(url: string): string {
-  const { hostname, port, pathname } = new URL(url);
-  return `${hostname}:${port || "5432"}${pathname}`;
+  try {
+    const { host, port, database } = parse(url);
+    return `${host ?? "the local socket"}:${port ?? "5432"}/${database ?? ""}`;
+  } catch {
+    return "the configured database";
+  }
 }
 
 const configured = process.env.MIGRATION_DATABASE_URL;

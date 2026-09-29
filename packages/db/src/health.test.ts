@@ -2,8 +2,16 @@ import { createServer, type Server, type Socket } from "node:net";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { randomBytes } from "node:crypto";
+
 import { openDatabase } from "./client.ts";
 import { pingDatabase } from "./health.ts";
+import {
+  adminQuery,
+  databaseUrl,
+  uniqueName,
+  withLogin,
+} from "./testing/admin.ts";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -93,6 +101,82 @@ describe("pingDatabase", () => {
       // The pool's own connection timeout frees the stuck slot later.
       void pool.end();
     });
+  });
+});
+
+describe("the role check, for a login that can do more than the app", () => {
+  let database: TestDatabase;
+  let server: string;
+  const made: string[] = [];
+
+  beforeAll(async () => {
+    database = await createTestDatabase();
+    server = databaseUrl(database.url, "postgres");
+  });
+  afterAll(async () => {
+    const name = new URL(database.url).pathname.slice(1);
+    await adminQuery(server, `alter database "${name}" owner to current_user`);
+    await database.drop();
+    for (const role of made.reverse()) {
+      await adminQuery(server, `drop role if exists "${role}"`);
+    }
+  });
+
+  /** A login that can switch to beekeeping_app, with extra rights. */
+  async function login(extra: string, grants: string[] = []) {
+    const user = uniqueName("bk_login");
+    const password = randomBytes(12).toString("hex");
+    await adminQuery(
+      server,
+      `create role "${user}" login noinherit ${extra} password '${password}'`,
+    );
+    made.push(user);
+    await adminQuery(
+      server,
+      `grant ${["beekeeping_app", ...grants].join(", ")} to "${user}"`,
+    );
+    return { user, url: withLogin(database.url, user, password) };
+  }
+
+  async function ping(url: string) {
+    const { pool, close } = openDatabase(url, { max: 1 });
+    try {
+      return await pingDatabase(pool);
+    } finally {
+      await close();
+    }
+  }
+
+  it("passes a login that can only switch to beekeeping_app", async () => {
+    const { url } = await login("");
+    expect((await ping(url)).ok).toBe(true);
+  });
+
+  it("fails a login that skips row-level security", async () => {
+    const { url } = await login("bypassrls");
+    expect(await ping(url)).toEqual({ ok: false, reason: "unsafe_role" });
+  });
+
+  it("fails a login that owns the database", async () => {
+    const { user, url } = await login("");
+    const name = new URL(database.url).pathname.slice(1);
+    await adminQuery(server, `alter database "${name}" owner to "${user}"`);
+    try {
+      expect(await ping(url)).toEqual({ ok: false, reason: "unsafe_role" });
+    } finally {
+      await adminQuery(
+        server,
+        `alter database "${name}" owner to current_user`,
+      );
+    }
+  });
+
+  it("fails a login that can switch to another role", async () => {
+    const other = uniqueName("bk_other");
+    await adminQuery(server, `create role "${other}" nologin`);
+    made.push(other);
+    const { url } = await login("", [`"${other}"`]);
+    expect(await ping(url)).toEqual({ ok: false, reason: "unsafe_role" });
   });
 });
 

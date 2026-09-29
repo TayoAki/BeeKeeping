@@ -1,5 +1,6 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import { parseIntoClientConfig } from "pg-connection-string";
 
 import * as schema from "./schema/index.ts";
 
@@ -35,17 +36,19 @@ function logError(error: Error & { code?: string }): void {
 }
 
 /**
- * pg lets options in the URL replace the ones passed beside it, which would
- * drop the role. So the URL's options come first and the role goes last,
- * where Postgres lets it win.
+ * Reads the URL with pg's own parser, which accepts every form pg does and
+ * keeps the URL, password included, out of its errors. pg would let options
+ * in the URL replace the ones passed beside it and drop the role, so the
+ * URL's options come first and the role goes last, where Postgres lets it
+ * win.
  */
-function withAppRole(url: string) {
-  const parsed = new URL(url);
-  const fromUrl = parsed.searchParams.get("options");
-  parsed.searchParams.delete("options");
+function withAppRole(url: string): pg.PoolConfig {
+  const config = parseIntoClientConfig(url);
   return {
-    connectionString: parsed.toString(),
-    options: [fromUrl, "-c role=beekeeping_app"].filter(Boolean).join(" "),
+    ...config,
+    options: [config.options, "-c role=beekeeping_app"]
+      .filter(Boolean)
+      .join(" "),
   };
 }
 

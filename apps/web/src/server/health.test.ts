@@ -4,6 +4,7 @@ import { openDatabase } from "@beekeeping/db";
 import { createTestDatabase, type TestDatabase } from "@beekeeping/db/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { database as appDatabase } from "./database.ts";
 import { healthResponse } from "./health.ts";
 
 describe("the health check", () => {
@@ -81,6 +82,21 @@ describe("the health check", () => {
       for (const socket of sockets) socket.destroy();
       silent.close();
       void handle.close();
+    }
+  });
+
+  it("answers 503, and logs no part of the URL, when DATABASE_URL can't be read", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const saved = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = "postgres://app:SecretPass9@[broken/books";
+    try {
+      const handle = appDatabase();
+      expect(handle).toBeUndefined();
+      expect((await healthResponse(handle)).status).toBe(503);
+      expect(JSON.stringify(logged.mock.calls)).not.toContain("SecretPass9");
+    } finally {
+      process.env.DATABASE_URL = saved;
+      logged.mockRestore();
     }
   });
 

@@ -144,8 +144,6 @@ async function withLock<T>(work: () => T): Promise<T> {
   for (;;) {
     try {
       mkdirSync(lockDir);
-      writeFileSync(join(lockDir, "pid"), String(process.pid));
-      break;
     } catch (error) {
       if (errorCode(error) !== "EEXIST") throw error;
       if (lockIsStale()) {
@@ -160,6 +158,15 @@ async function withLock<T>(work: () => T): Promise<T> {
         told = true;
       }
       await sleep(200);
+      continue;
+    }
+    try {
+      writeFileSync(join(lockDir, "pid"), String(process.pid));
+      break;
+    } catch (error) {
+      // Another run judged the last holder dead and removed this lock just
+      // after it was made. Start over instead of failing.
+      if (errorCode(error) !== "ENOENT") throw error;
     }
   }
   try {

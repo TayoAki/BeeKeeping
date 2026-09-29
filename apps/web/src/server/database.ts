@@ -10,6 +10,12 @@ let handle: DatabaseHandle | undefined;
 export function database(): DatabaseHandle | undefined {
   const url = process.env.DATABASE_URL;
   if (!url) return undefined;
-  handle ??= openDatabase(url);
+  try {
+    handle ??= openDatabase(url);
+  } catch {
+    // The error could hold part of the URL, so only this line is logged.
+    console.error("database: DATABASE_URL can't be read as a Postgres URL.");
+    return undefined;
+  }
   return handle;
 }

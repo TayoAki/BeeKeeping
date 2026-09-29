@@ -147,8 +147,10 @@ Databases:
   database owner: the health check answers 503 if it does. Migrations and
   test setup log in as the owner.
 - On a new server, after the first migration, an admin creates the app's
-  login with a password from the secret store:
-  `CREATE ROLE beekeeping_web LOGIN NOINHERIT PASSWORD '...'; GRANT beekeeping_app TO beekeeping_web;`.
+  login with `CREATE ROLE beekeeping_web LOGIN NOINHERIT; GRANT beekeeping_app TO beekeeping_web;`,
+  then sets its password from the secret store with `\password beekeeping_web`
+  in psql. That sends only a hash, so the password never reaches the
+  server's log or psql's history.
   `DATABASE_URL` logs in as `beekeeping_web`. `MIGRATION_DATABASE_URL`
   logs in as the owner, and only migrations use it. The throwaway Postgres
   gets a `beekeeping_web` with no password from `pnpm db:migrate`.

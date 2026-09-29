@@ -27,6 +27,7 @@
   "dependencies": {
     "@beekeeping/services": "workspace:*",
     "drizzle-orm": "catalog:",
-    "pg": "catalog:"
+    "pg": "catalog:",
+    "pg-connection-string": "2.14.0"
   }
 }
