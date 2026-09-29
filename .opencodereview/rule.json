@@ -1,6 +1,12 @@
 {
   "exclude": [
-    ".claude/skills/**",
+    ".claude/skills/before-and-after/**",
+    ".claude/skills/code-structure/**",
+    ".claude/skills/evidence-driven-testing/**",
+    ".claude/skills/new-feature/**",
+    ".claude/skills/open-code-review/**",
+    ".claude/skills/open-code-review-delegate/**",
+    ".claude/skills/unslop/**",
     "research/**",
     ".artifacts/**",
     "**/LICENSE",
@@ -12,7 +18,8 @@
     "**/*.test.ts",
     "**/*.test.tsx",
     "AGENTS.md",
-    ".github/pull_request_template.md"
+    ".github/pull_request_template.md",
+    ".claude/skills/ocr-review/SKILL.md"
   ],
   "rules": [
     {
@@ -23,6 +30,11 @@
     {
       "path": ".github/pull_request_template.md",
       "rule": "The PR template. Check that it keeps the five parts of the PR body from docs/execution-plan.md (acceptance rules, what changed, how it was tested, before and after, risks and follow-up work), that it asks for the OCR review result, and that its text follows the unslop skill.",
+      "merge_system_rule": true
+    },
+    {
+      "path": ".claude/skills/ocr-review/SKILL.md",
+      "rule": "BeeKeeping's own review skill. Check that it matches how open-code-review actually behaves (flags, include and exclude, delegation mode), that it agrees with AGENTS.md and docs/execution-plan.md on when a review is clean, and that its text follows the unslop skill.",
       "merge_system_rule": true
     },
     {

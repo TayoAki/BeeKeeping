@@ -72,9 +72,10 @@ wrote or changed, not to prose you didn't touch.
    rerun the checks.
 5. Push (`git push -u origin <branch>`; after rebasing an already-pushed
    branch, `--force-with-lease`).
-6. Open the PR. The body must explain what changed, how it was tested (every
-   claim backed by evidence), before/after proof, and any risks or follow-up
-   work. Run the title and body through `/unslop` before posting.
+6. Open the PR from `.github/pull_request_template.md`. Its five parts are the
+   acceptance rules, what changed, how it was tested (every claim backed by
+   evidence), before/after proof, and any risks or follow-up work. Run the
+   title and body through `/unslop` before posting.
 7. Run `/ocr-review` until a review round finds **no critical, high or
    medium issues**.
 8. End by presenting the PR URL.
@@ -173,8 +174,6 @@ How the workspace fits together:
 - When a cloud session starts, `.claude/hooks/session-start.sh` runs
   `pnpm install --frozen-lockfile` and installs the `ocr` CLI if it's
   missing, so the checks run straight away. Local sessions skip the hook.
-- `.github/pull_request_template.md` lays out the five parts of the PR body
-  and the table of review rounds.
 - Cloud sessions have no display. Use the headless path in
   `evidence-driven-testing` and keep evidence in `.artifacts/<task-name>/`,
   which is gitignored.

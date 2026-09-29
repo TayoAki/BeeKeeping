@@ -7,29 +7,35 @@ Keep the five parts below. Write "None" rather than deleting a part.
 ## Acceptance rules
 
 <!-- The rules from the task's row, its inventory section and the lessons
-table in docs/build-plan.md. Each one has a test. -->
+table in docs/build-plan.md. Each one has a test. Tick a rule once its test
+passes and the evidence below shows it. -->
 
 - [ ]
 
 ## What changed
 
-<!-- Files and behavior, grouped by layer: actions, services, db, web. -->
+<!-- Group by where the change lives: actions, services, db, mcp, ui,
+testing, web, worker, and repo files such as CI, docs and config. -->
 
 -
 
 ## How it was tested
 
-<!-- pnpm check and pnpm build, then the proof the task's row asks for, from
-.artifacts/<task>/. Every claim here points at a test or a capture. -->
+<!-- pnpm check and pnpm build, then the proof the task's row asks for.
+.artifacts/<task>/ stays on the machine, so paste the output here or link
+the uploaded capture. Every claim here points at a test or a capture. -->
 
 - `pnpm check`:
 - `pnpm build`:
 - Evidence:
-- Review clean in round <n>: no critical, high or medium issues in <m> files.
+- Review: pending. When /ocr-review stops, replace this line with "Review
+  clean in round N: no critical, high or medium issues in M files.", or,
+  after five rounds without a clean one, with the findings still open. Fill
+  in one table row per round.
 
 | Round | Mode | Files | Critical | High | Medium | Low | Fixed |
 |---|---|---|---|---|---|---|---|
-| 1 | delegation | | | | | | |
+| | | | | | | | |
 
 ## Before and after
 
@@ -38,7 +44,7 @@ pairs or numbers from probe-output.txt. Docs only: say so. -->
 
 ## Risks and follow-up work
 
-<!-- What could go wrong, what's left for later, and medium review findings
-that fall outside the task. -->
+<!-- What could go wrong, what's left for later, medium review findings that
+fall outside the task, and any finding you chose not to fix, with why. -->
 
 -
