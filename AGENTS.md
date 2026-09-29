@@ -173,6 +173,8 @@ How the workspace fits together:
 - When a cloud session starts, `.claude/hooks/session-start.sh` runs
   `pnpm install --frozen-lockfile` and installs the `ocr` CLI if it's
   missing, so the checks run straight away. Local sessions skip the hook.
+- `.github/pull_request_template.md` lays out the five parts of the PR body
+  and the table of review rounds.
 - Cloud sessions have no display. Use the headless path in
   `evidence-driven-testing` and keep evidence in `.artifacts/<task-name>/`,
   which is gitignored.

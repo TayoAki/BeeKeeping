@@ -77,7 +77,7 @@ After fixing, run the checks again, commit with a message such as "Address revie
 
 ## Rules and exclusions
 
-OCR reads `.opencodereview/rule.json`. It holds BeeKeeping's review rules by folder, the paths to skip, such as vendored skills, research notes, license files and lockfiles, and an `include` list. OCR skips test files and Markdown by default, and the list brings back `*.test.ts`, `*.test.tsx` and `AGENTS.md`.
+OCR reads `.opencodereview/rule.json`. It holds BeeKeeping's review rules by folder, the paths to skip, such as vendored skills, research notes, license files and lockfiles, and an `include` list. OCR skips test files and Markdown by default, and the list brings back `*.test.ts`, `*.test.tsx`, `AGENTS.md` and the PR template.
 
 - Within that file, OCR applies the first rule whose path matches. Specific paths come first and the catch-all comes last.
 - When a task adds a new kind of file or a new top-level folder, add its rule in the same PR.

@@ -8,11 +8,21 @@
     "**/drizzle/meta/**",
     "**/*.snap"
   ],
-  "include": ["**/*.test.ts", "**/*.test.tsx", "AGENTS.md"],
+  "include": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "AGENTS.md",
+    ".github/pull_request_template.md"
+  ],
   "rules": [
     {
       "path": "AGENTS.md",
       "rule": "The rules every agent session follows. Check that each command it lists exists in package.json, that no rule contradicts the hard invariants or docs/execution-plan.md, and that new text follows the unslop skill: plain words, active voice, no em dashes and no filler.",
+      "merge_system_rule": true
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "rule": "The PR template. Check that it keeps the five parts of the PR body from docs/execution-plan.md (acceptance rules, what changed, how it was tested, before and after, risks and follow-up work), that it asks for the OCR review result, and that its text follows the unslop skill.",
       "merge_system_rule": true
     },
     {
