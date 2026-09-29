@@ -42,7 +42,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/beekeeping_ci
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@localhost:5432/beekeeping_ci
       TEST_DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - name: Check out

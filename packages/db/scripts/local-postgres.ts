@@ -1,7 +1,7 @@
 // Starts and stops the throwaway Postgres that development and tests use when
-// no DATABASE_URL or TEST_DATABASE_ADMIN_URL is set. It runs the Postgres
-// installed on the machine (the cloud image has Postgres 16), so it needs no
-// Docker. CI uses its own Postgres service instead.
+// no MIGRATION_DATABASE_URL or TEST_DATABASE_ADMIN_URL is set. It runs the
+// Postgres installed on the machine (the cloud image has Postgres 16), so it
+// needs no Docker. CI uses its own Postgres service instead.
 //
 //   node scripts/local-postgres.ts start | stop | status | url
 //
@@ -15,8 +15,10 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -32,6 +34,13 @@ const lockDir = `${home}.lock`;
 export const localAdminUrl = `postgres://postgres@127.0.0.1:${port}/postgres`;
 
 /**
+ * The login the app uses on the throwaway server: a member of beekeeping_app
+ * with no rights of its own. `pnpm db:migrate` creates it. The server trusts
+ * local connections, so it has no password.
+ */
+export const localAppLogin = "beekeeping_web";
+
+/**
  * This checkout's development database, such as beekeeping_dev_3f9a0c1d. Each
  * worktree has its own, so migrations on one branch never land in another's.
  */
@@ -41,8 +50,14 @@ export function localDevelopmentDatabase(): string {
   return `beekeeping_dev_${hash}`;
 }
 
-export function localDevelopmentUrl(): string {
+/** This checkout's development database, as the owner, for migrations. */
+export function localDevelopmentOwnerUrl(): string {
   return `postgres://postgres@127.0.0.1:${port}/${localDevelopmentDatabase()}`;
+}
+
+/** This checkout's development database, as the app logs in to it. */
+export function localDevelopmentAppUrl(): string {
+  return `postgres://${localAppLogin}@127.0.0.1:${port}/${localDevelopmentDatabase()}`;
 }
 
 /** Version folders as numbers, so 16 wins over 9.6 and our pinned 16 first. */
@@ -69,7 +84,7 @@ function binDir(): string {
   );
   if (!found) {
     throw new Error(
-      "No Postgres server found. Install Postgres 16, set BEEKEEPING_PG_BIN to its bin folder, or set DATABASE_URL.",
+      "No Postgres server found. Install Postgres 16, set BEEKEEPING_PG_BIN to its bin folder, or set MIGRATION_DATABASE_URL and TEST_DATABASE_ADMIN_URL to a server you run.",
     );
   }
   return found;
@@ -95,25 +110,56 @@ function isReady(): boolean {
   return run("pg_isready", ["-h", "127.0.0.1", "-p", String(port)]).ok;
 }
 
+function errorCode(error: unknown): string | undefined {
+  return (error as NodeJS.ErrnoException).code;
+}
+
+/**
+ * True when the run that took the lock has exited, as after Ctrl-C during
+ * initdb, or when the lock is over two minutes old.
+ */
+function lockIsStale(): boolean {
+  try {
+    process.kill(Number(readFileSync(join(lockDir, "pid"), "utf8")), 0);
+  } catch (error) {
+    if (errorCode(error) === "ESRCH") return true;
+  }
+  try {
+    return Date.now() - statSync(lockDir).mtimeMs > 120_000;
+  } catch {
+    // The lock went away just now. The next attempt takes it.
+    return false;
+  }
+}
+
 /**
  * Holds a lock while it starts the server, so two test runs starting at once
- * don't both run initdb. A lock older than two minutes belongs to a run that
- * died, so it's taken over.
+ * don't both run initdb. The lock records who holds it, so a lock left by a
+ * run that died is taken over at once.
  */
 async function withLock<T>(work: () => T): Promise<T> {
   mkdirSync(dirname(lockDir), { recursive: true });
   const deadline = Date.now() + 120_000;
+  let told = false;
   for (;;) {
     try {
       mkdirSync(lockDir);
+      writeFileSync(join(lockDir, "pid"), String(process.pid));
       break;
-    } catch {
-      const stale =
-        existsSync(lockDir) && Date.now() - statSync(lockDir).mtimeMs > 120_000;
-      if (stale) rmSync(lockDir, { recursive: true, force: true });
-      else if (Date.now() > deadline) {
-        throw new Error(`Timed out waiting for ${lockDir}`);
-      } else await sleep(200);
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") throw error;
+      if (lockIsStale()) {
+        rmSync(lockDir, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for ${lockDir}`, { cause: error });
+      }
+      if (!told) {
+        console.error(`Waiting for another run to start Postgres (${lockDir})`);
+        told = true;
+      }
+      await sleep(200);
     }
   }
   try {
@@ -179,7 +225,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   switch (command) {
     case "start":
       console.log(`Postgres is running at ${await startLocalPostgres()}`);
-      console.log(`This checkout's database: ${localDevelopmentUrl()}`);
+      console.log(
+        `The app's URL for this checkout, once pnpm db:migrate has run: ${localDevelopmentAppUrl()}`,
+      );
       break;
     case "stop":
       stopLocalPostgres();
@@ -189,7 +237,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.log(isReady() ? `running at ${localAdminUrl}` : "stopped");
       break;
     case "url":
-      console.log(localDevelopmentUrl());
+      console.log(localDevelopmentAppUrl());
       break;
     default:
       console.error("Usage: local-postgres.ts start | stop | status | url");

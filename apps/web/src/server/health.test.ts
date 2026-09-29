@@ -1,6 +1,8 @@
+import { createServer, type Socket } from "node:net";
+
 import { openDatabase } from "@beekeeping/db";
 import { createTestDatabase, type TestDatabase } from "@beekeeping/db/testing";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { healthResponse } from "./health.ts";
 
@@ -12,12 +14,29 @@ describe("the health check", () => {
   afterAll(() => database.drop());
 
   it("answers 200 when the database answers", async () => {
-    const handle = openDatabase(database.url, { max: 1 });
+    const handle = openDatabase(database.appUrl, { max: 1 });
     try {
       const response = await healthResponse(handle);
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ status: "ok", database: "ok" });
     } finally {
+      await handle.close();
+    }
+  });
+
+  it("answers 503 when the app logs in as the database owner", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const handle = openDatabase(database.url, { max: 1 });
+    try {
+      const response = await healthResponse(handle);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        status: "unavailable",
+        database: "misconfigured",
+      });
+      expect(logged).toHaveBeenCalledOnce();
+    } finally {
+      logged.mockRestore();
       await handle.close();
     }
   });
@@ -38,6 +57,30 @@ describe("the health check", () => {
       expect(text).not.toContain("secret");
     } finally {
       await handle.close();
+    }
+  });
+
+  it("answers 503 within 4 s when the database accepts but never answers", async () => {
+    // The pool the app opens, with its default limits.
+    const sockets: Socket[] = [];
+    const silent = createServer((socket) => void sockets.push(socket));
+    await new Promise<void>((resolve) =>
+      silent.listen(0, "127.0.0.1", resolve),
+    );
+    const address = silent.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    const handle = openDatabase(`postgres://nobody@127.0.0.1:${port}/none`, {
+      onError: () => {},
+    });
+    const started = performance.now();
+    try {
+      const response = await healthResponse(handle);
+      expect(response.status).toBe(503);
+      expect(performance.now() - started).toBeLessThan(4_000);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      silent.close();
+      void handle.close();
     }
   });
 

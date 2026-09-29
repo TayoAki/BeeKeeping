@@ -14,6 +14,14 @@ export function databaseUrl(serverUrl: string, database: string): string {
   return url.toString();
 }
 
+/** The same URL, signed in as another role. */
+export function withLogin(url: string, user: string, password: string): string {
+  const next = new URL(url);
+  next.username = user;
+  next.password = password;
+  return next.toString();
+}
+
 /** Runs one statement, such as create database, on its own connection. */
 export async function adminQuery(
   serverUrl: string,

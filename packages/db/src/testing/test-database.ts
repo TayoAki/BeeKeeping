@@ -1,10 +1,13 @@
 import { inject } from "vitest";
 
-import { adminQuery, databaseUrl, uniqueName } from "./admin.ts";
+import { adminQuery, databaseUrl, uniqueName, withLogin } from "./admin.ts";
 import "./provided.ts";
 
 export type TestDatabase = {
+  /** Logs in as the owner, for setting up rows and checking what happened. */
   readonly url: string;
+  /** Logs in the way the app does, for openDatabase. */
+  readonly appUrl: string;
   readonly drop: () => Promise<void>;
 };
 
@@ -20,11 +23,14 @@ function serverUrl(): string {
 
 async function create(from?: string): Promise<TestDatabase> {
   const server = serverUrl();
+  const { user, password } = inject("testDatabaseAppLogin");
   const name = uniqueName("bk_test");
   const template = from ? ` template "${from}"` : "";
   await adminQuery(server, `create database "${name}"${template}`);
+  const url = databaseUrl(server, name);
   return {
-    url: databaseUrl(server, name),
+    url,
+    appUrl: withLogin(url, user, password),
     drop: () =>
       adminQuery(server, `drop database if exists "${name}" with (force)`),
   };

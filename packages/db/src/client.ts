@@ -12,16 +12,16 @@ export type DatabaseHandle = {
 };
 
 export type OpenOptions = {
-  /**
-   * "app" connections start as the beekeeping_app role, so row-level security
-   * applies to every query. Only migrations and test setup use "owner".
-   */
-  readonly as?: "app" | "owner";
   readonly max?: number;
   /** How long to wait for a connection before giving up. */
   readonly connectionTimeoutMs?: number;
-  /** How long one query may run before the client gives up on it. */
-  readonly queryTimeoutMs?: number;
+  /**
+   * Postgres cancels a statement that runs longer than this. 0 leaves the
+   * server's own limit. The server does the cancelling, so a slow statement
+   * never sends its connection back to the pool in the middle of a
+   * transaction.
+   */
+  readonly statementTimeoutMs?: number;
   /** Told about a broken idle connection. Logs its error code by default. */
   readonly onError?: (error: Error & { code?: string }) => void;
 };
@@ -34,24 +34,41 @@ function logError(error: Error & { code?: string }): void {
   );
 }
 
-/** Opens a connection pool to the database at url. */
+/**
+ * pg lets options in the URL replace the ones passed beside it, which would
+ * drop the role. So the URL's options come first and the role goes last,
+ * where Postgres lets it win.
+ */
+function withAppRole(url: string) {
+  const parsed = new URL(url);
+  const fromUrl = parsed.searchParams.get("options");
+  parsed.searchParams.delete("options");
+  return {
+    connectionString: parsed.toString(),
+    options: [fromUrl, "-c role=beekeeping_app"].filter(Boolean).join(" "),
+  };
+}
+
+/**
+ * Opens the app's connection pool. Each connection starts as beekeeping_app,
+ * before any query, so row-level security applies to everything the app
+ * sends. The URL logs in as the app's own login role, which has no rights
+ * beyond beekeeping_app. It never logs in as the database owner.
+ */
 export function openDatabase(
   url: string,
   {
-    as = "app",
     max = 10,
     connectionTimeoutMs = 5_000,
-    queryTimeoutMs = 30_000,
+    statementTimeoutMs = 30_000,
     onError = logError,
   }: OpenOptions = {},
 ): DatabaseHandle {
   const pool = new pg.Pool({
-    connectionString: url,
+    ...withAppRole(url),
     max,
     connectionTimeoutMillis: connectionTimeoutMs,
-    query_timeout: queryTimeoutMs,
-    // Postgres sets the role as the connection opens, before any query.
-    ...(as === "app" ? { options: "-c role=beekeeping_app" } : {}),
+    statement_timeout: statementTimeoutMs,
   });
   // Without a listener, a dropped idle connection crashes the process.
   pool.on("error", onError);

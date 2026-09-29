@@ -4,6 +4,8 @@ declare module "vitest" {
   export interface ProvidedContext {
     testDatabaseServerUrl: string;
     testDatabaseTemplate: string;
+    /** The app's login for this test run: a member of beekeeping_app. */
+    testDatabaseAppLogin: { user: string; password: string };
   }
 }
 

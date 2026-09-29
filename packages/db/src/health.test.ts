@@ -17,9 +17,25 @@ describe("pingDatabase", () => {
   afterAll(() => database.drop());
 
   it("answers ok from a running database, as the app role", async () => {
-    const { pool, close } = openDatabase(database.url, { max: 1 });
+    const { pool, close } = openDatabase(database.appUrl, { max: 1 });
     try {
       expect((await pingDatabase(pool)).ok).toBe(true);
+      const { rows } = await pool.query<{ current_user: string }>(
+        "select current_user",
+      );
+      expect(rows[0]?.current_user).toBe("beekeeping_app");
+    } finally {
+      await close();
+    }
+  });
+
+  it("reports an unsafe role when the app logs in as the database owner", async () => {
+    const { pool, close } = openDatabase(database.url, { max: 1 });
+    try {
+      expect(await pingDatabase(pool)).toEqual({
+        ok: false,
+        reason: "unsafe_role",
+      });
     } finally {
       await close();
     }

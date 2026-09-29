@@ -126,8 +126,8 @@ command from the repo root.
 | `pnpm build` | Builds the web app. |
 | `pnpm check` | Runs typecheck, lint, format:check and test, in that order. |
 | `pnpm db:start` | Starts the throwaway Postgres on port 54320, with its files in `/tmp/beekeeping-postgres`. `pnpm db:stop` stops it for every checkout on the machine. |
-| `pnpm db:migrate` | Applies pending migrations to `DATABASE_URL`, or to this checkout's development database on the throwaway Postgres when it isn't set. |
-| `pnpm db:url` | Prints this checkout's development database URL, for `DATABASE_URL`. |
+| `pnpm db:migrate` | Applies pending migrations to `MIGRATION_DATABASE_URL`, which logs in as the database owner. When it isn't set, migrates this checkout's development database on the throwaway Postgres and creates the app's local login. |
+| `pnpm -s db:url` | Prints the URL the app uses for this checkout's development database. Run `pnpm db:migrate` once first, then `export DATABASE_URL="$(pnpm -s db:url)"`. Without `-s`, pnpm's banner lands in the variable too. |
 
 A task is ready for review when `pnpm check` and `pnpm build` pass. CI runs
 the same steps on every PR and on pushes to `main` and `claude/**`, in
@@ -141,11 +141,22 @@ Databases:
   server serves every checkout, and each checkout gets its own development
   database, named after its path.
 - The app's connections start as the `beekeeping_app` role, so row-level
-  security covers every query. Migrations and test setup connect as the
-  owner.
+  security covers every query. The app logs in as a login role of its own,
+  a `NOINHERIT` member of `beekeeping_app` with no rights of its own, so
+  even `SET ROLE NONE` leaves it nothing to read. It never logs in as the
+  database owner: the health check answers 503 if it does. Migrations and
+  test setup log in as the owner.
+- On a new server, after the first migration, an admin creates the app's
+  login with a password from the secret store:
+  `CREATE ROLE beekeeping_web LOGIN NOINHERIT PASSWORD '...'; GRANT beekeeping_app TO beekeeping_web;`.
+  `DATABASE_URL` logs in as `beekeeping_web`. `MIGRATION_DATABASE_URL`
+  logs in as the owner, and only migrations use it. The throwaway Postgres
+  gets a `beekeeping_web` with no password from `pnpm db:migrate`.
 - Each test project migrates one template database, and each test file
   clones it with `createTestDatabase()` from `@beekeeping/db/testing`. Files
-  never share rows. A package whose tests need a database adds
+  never share rows. Its `appUrl` logs in the way the app does, for
+  `openDatabase`; its `url` logs in as the owner, for setting up rows and
+  checking results. A package whose tests need a database adds
   `@beekeeping/db/testing/global-setup` to its Vitest `globalSetup`, as
   `apps/web` does.
 - Set `TEST_DATABASE_ADMIN_URL` to run the tests on another server, as CI
