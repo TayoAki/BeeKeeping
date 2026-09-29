@@ -6,7 +6,8 @@ import { cache } from "react";
 import { getAuth } from "./auth.ts";
 
 // The reads below are cached for one page render, so a page and the
-// actions it runs through runForMember see one session and one membership.
+// actions it calls through invokeForMember see one session and one
+// membership.
 // Server actions and route handlers have no render, so each call there
 // reads again: read once and pass the result on.
 

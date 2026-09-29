@@ -11,6 +11,13 @@ describe("roles", () => {
     expect(roleAtLeast("viewer", "bookkeeper")).toBe(false);
   });
 
+  it("ranks a role it doesn't know below every other, however it's spelled", () => {
+    for (const unknown of ["agent", "owner,admin", "", undefined]) {
+      expect(roleAtLeast(unknown as never, "viewer")).toBe(false);
+      expect(roleAtLeast("owner", unknown as never)).toBe(false);
+    }
+  });
+
   it("knows only the four roles", () => {
     expect(roleNames.every(isRole)).toBe(true);
     expect(isRole("member")).toBe(false);

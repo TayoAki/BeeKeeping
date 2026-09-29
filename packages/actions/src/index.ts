@@ -24,15 +24,25 @@ export type { EmailContent } from "./auth/emails.ts";
 export { isPersonName, personNameLimit } from "./auth/name.ts";
 export {
   DatabaseRefusal,
-  runAction,
   type ActionContext,
   type Principal,
 } from "./context.ts";
+export type { OrganizationSettings } from "./organization/settings.ts";
+export type {
+  ActionDefinition,
+  ActionKind,
+  ApprovalCategory,
+} from "./registry/define.ts";
 export {
-  getOrganizationSettings,
-  setUpOrganization,
-  type OrganizationSettings,
-} from "./organization/settings.ts";
+  actions,
+  findAction,
+  invokeAction,
+  type ActionInput,
+  type ActionName,
+  type ActionOutcome,
+  type InputIssue,
+  type InvokeFailure,
+} from "./registry/registry.ts";
 export {
   isOrganizationName,
   organizationNameLimit,

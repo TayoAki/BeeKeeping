@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { getOrganizationSettings, type Role } from "@beekeeping/actions";
+import type { Role } from "@beekeeping/actions";
 import { redirect } from "next/navigation";
 
 import { OrganizationPicker } from "../../components/organization-picker.tsx";
-import { runForMember } from "../../server/actions.ts";
+import { invokeForMember } from "../../server/actions.ts";
 import { currencyName, currencyOptions } from "../../server/currencies.ts";
 import {
   activeMembership,
@@ -50,7 +50,7 @@ export default async function HomePage() {
     );
   }
 
-  const settings = await runForMember((ctx) => getOrganizationSettings(ctx));
+  const settings = await invokeForMember("get_organization_settings", {});
 
   return (
     <>

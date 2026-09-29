@@ -183,13 +183,25 @@ Databases:
   its migration also needs `REVOKE ALL ON <table> FROM beekeeping_app;` and
   `GRANT SELECT, INSERT, UPDATE, DELETE ON <table> TO beekeeping_auth;`,
   written by hand at its end, as 0002 does.
-- Actions run through `runAction` from `@beekeeping/actions`, which opens a
-  transaction and sets `app.org_id` and `app.user_id` with `set local`.
-  It's the only code that sets them: an action that calls `set_config`
-  itself can reach any organization. Actions still filter by
-  `ctx.orgId`; row-level security catches what they miss. A web server
-  action builds the principal from the session with `runForMember` in
-  `apps/web/src/server/actions.ts`, never from its input.
+- Every action is declared with `defineAction` and listed in the registry,
+  `packages/actions/src/registry/registry.ts`. A definition names the
+  action in snake_case, describes it, and gives its kind (read, draft, post
+  or admin), the lowest role that may call it, its approval category
+  (none, policy, ask or never) and zod schemas for its input and for a
+  success's fields. One that leaves a field out throws when it loads.
+- `invokeAction` is the only way to call an action. It checks the role and
+  the input, runs the action through `runAction`, and checks the output.
+  `runAction` opens a transaction and sets `app.org_id` and `app.user_id`
+  with `set local`. It's the only code that sets them: an action that calls
+  `set_config` itself can reach any organization. Actions still filter by
+  `ctx.orgId`; row-level security catches what they miss.
+- The web app calls actions with `invokeForMember` in
+  `apps/web/src/server/actions.ts`, which builds the principal from the
+  session, never from the request. Client components call the one server
+  action, `callAction` in `apps/web/src/app/(app)/actions.ts`, so a new
+  action needs no web code of its own. It does need a case in
+  `packages/actions/src/tenancy.test.ts`, which calls every registered
+  action as another organization's member.
 
 Running the web app (`pnpm --filter @beekeeping/web dev`) needs these
 settings. `apps/web/src/server/env.ts` checks them the first time a page or

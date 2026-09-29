@@ -11,7 +11,7 @@ import { FormError } from "../../../components/form-error.tsx";
 import { SubmitButton } from "../../../components/submit-button.tsx";
 import { fieldText } from "../../../lib/form.ts";
 import { useRequest } from "../../../lib/use-request.ts";
-import { setUpOrganizationAction } from "./actions.ts";
+import { callAction } from "../actions.ts";
 
 /** For an owner whose organization has no home currency yet. */
 export function FinishSetUpForm({ options }: { options: CurrencyOption[] }) {
@@ -25,7 +25,9 @@ export function FinishSetUpForm({ options }: { options: CurrencyOption[] }) {
       "homeCurrency",
     );
     void run(async () => {
-      const outcome = await setUpOrganizationAction({ homeCurrency });
+      const outcome = await callAction("set_up_organization", {
+        homeCurrency,
+      });
       if (!outcome.ok) return outcome.message;
       router.refresh();
       return undefined;

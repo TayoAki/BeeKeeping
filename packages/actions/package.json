@@ -22,6 +22,7 @@
     "@beekeeping/db": "workspace:*",
     "@beekeeping/services": "workspace:*",
     "better-auth": "catalog:",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   }
 }

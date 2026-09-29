@@ -14,7 +14,7 @@ import { failureOf } from "../../../../lib/auth-call.ts";
 import { authClient } from "../../../../lib/auth-client.ts";
 import { fieldText } from "../../../../lib/form.ts";
 import { useRequest } from "../../../../lib/use-request.ts";
-import { setUpOrganizationAction } from "../actions.ts";
+import { callAction } from "../../actions.ts";
 
 /** A web address for the organization: its name in lowercase, plus a suffix. */
 function slugFor(name: string): string {
@@ -49,7 +49,7 @@ export function NewOrganizationForm({
       // owner. If its currency doesn't save, the home page asks for it
       // again, so this form never offers to create the organization a
       // second time.
-      await setUpOrganizationAction({
+      await callAction("set_up_organization", {
         homeCurrency: fieldText(form, "homeCurrency"),
       }).catch(() => undefined);
       router.replace("/");

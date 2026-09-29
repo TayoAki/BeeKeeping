@@ -67,6 +67,8 @@ export async function signUpOwner(
   await expect(
     page.getByRole("heading", { level: 1, name: business }),
   ).toBeVisible();
+  // The form saved the currency through callAction.
+  await expect(page.getByText("Home currency: USD")).toBeVisible();
 }
 
 /**

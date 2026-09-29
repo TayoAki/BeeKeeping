@@ -12,7 +12,7 @@ import { demoMember } from "@beekeeping/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { runAction, type Principal } from "../context.ts";
-import { getOrganizationSettings, setUpOrganization } from "./settings.ts";
+import { invokeAction } from "../registry/registry.ts";
 
 let database: TestDatabase;
 let app: DatabaseHandle;
@@ -27,11 +27,9 @@ afterAll(async () => {
 });
 
 const setUp = (principal: Principal, homeCurrency: string) =>
-  runAction(app.db, principal, (ctx) =>
-    setUpOrganization(ctx, { homeCurrency }),
-  );
+  invokeAction(app.db, principal, "set_up_organization", { homeCurrency });
 const read = (principal: Principal) =>
-  runAction(app.db, principal, (ctx) => getOrganizationSettings(ctx));
+  invokeAction(app.db, principal, "get_organization_settings", {});
 
 describe("setting up an organization", () => {
   it("records the home currency once, for the owner", async () => {
@@ -101,6 +99,25 @@ describe("setting up an organization", () => {
         ok: false,
         reason: "forbidden",
       });
+      expect(await read(member)).toMatchObject({
+        ok: false,
+        reason: "not_found",
+      });
     }
+  });
+
+  it("takes only a three-letter code", async () => {
+    const owner = await demoMember(database.url, "notacode", "owner");
+    expect(await setUp(owner, "US Dollar")).toMatchObject({
+      ok: false,
+      reason: "invalid_input",
+      issues: [
+        {
+          path: "homeCurrency",
+          message: "Use a three-letter currency code, such as USD.",
+        },
+      ],
+    });
+    expect(await read(owner)).toMatchObject({ ok: false, reason: "not_found" });
   });
 });

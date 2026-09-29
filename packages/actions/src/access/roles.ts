@@ -19,7 +19,11 @@ export function isRole(value: string): value is Role {
 
 /** True when role is needed or higher: an owner may do what an admin may. */
 export function roleAtLeast(role: Role, needed: Role): boolean {
-  return roleNames.indexOf(role) <= roleNames.indexOf(needed);
+  // A role outside the four, such as one read from a token, ranks nowhere,
+  // so it passes no check.
+  const have = roleNames.indexOf(role);
+  const need = roleNames.indexOf(needed);
+  return have !== -1 && need !== -1 && have <= need;
 }
 
 const statements = {

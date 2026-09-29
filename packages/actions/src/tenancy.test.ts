@@ -1,7 +1,8 @@
 // The cross-organization suite. Organization A has data; organization B's
-// member calls every action. Each action must answer "not found" or touch
-// only B's rows, and row-level security must stop what an action misses.
-// Each test makes the organizations it needs, so the tests run in any order.
+// member calls every registered action. Each action must answer "not
+// found" or touch only B's rows, and row-level security must stop what an
+// action misses. Each test makes the organizations it needs, so the tests
+// run in any order.
 import {
   openDatabase,
   organizationSettings,
@@ -18,10 +19,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { runAction, type Principal } from "./context.ts";
 import * as exported from "./index.ts";
-import {
-  getOrganizationSettings,
-  setUpOrganization,
-} from "./organization/settings.ts";
+import { definitionProblems } from "./registry/define.ts";
+import { actions, invokeAction, type ActionName } from "./registry/registry.ts";
 
 let database: TestDatabase;
 let app: DatabaseHandle;
@@ -68,10 +67,32 @@ afterAll(async () => {
   await database.drop();
 });
 
-// Every function the package exports that isn't an action, and the actions
-// the cases below cover. An action exported later without a case fails.
-const notActions = [
+// One case for each registered action: B's member calls it while A has
+// data. The type asks for a case for every name in the registry.
+const cases: Record<ActionName, (a: Principal, b: Principal) => Promise<void>> =
+  {
+    get_organization_settings: async (_a, b) => {
+      expect(
+        await invokeAction(app.db, b, "get_organization_settings", {}),
+      ).toMatchObject({ ok: false, reason: "not_found" });
+    },
+    set_up_organization: async (a, b) => {
+      const outcome = await invokeAction(app.db, b, "set_up_organization", {
+        homeCurrency: "EUR",
+      });
+      expect(outcome.ok).toBe(true);
+      expect(await settingsOf(a.orgId)).toEqual([{ home_currency: "USD" }]);
+      expect(await settingsOf(b.orgId)).toEqual([{ home_currency: "EUR" }]);
+    },
+  };
+
+// Every function the package exports. No action is among them: actions are
+// in the registry, and invokeAction runs them. A function exported later
+// fails the test until it's listed here on purpose.
+const exportedFunctions = [
   "DatabaseRefusal",
+  "findAction",
+  "invokeAction",
   "isOrganizationName",
   "isPersonName",
   "isRole",
@@ -80,13 +101,17 @@ const notActions = [
   "mayRemove",
   "maySignInByLink",
   "roleAtLeast",
-  "runAction",
   "startingOrganization",
 ];
-const covered = ["getOrganizationSettings", "setUpOrganization"];
 
 describe("every action, called by another organization's member", () => {
-  it("has a case here for every action the package exports", () => {
+  it("has a case here for every registered action", () => {
+    expect(Object.keys(cases).sort()).toEqual(
+      actions.map((action) => action.name).sort(),
+    );
+  });
+
+  it("is reached only through the registry", () => {
     // Functions, and functions inside exported namespaces such as
     // authEmails, whose email templates aren't actions.
     const functions = Object.entries(exported).flatMap(([name, value]) => {
@@ -98,33 +123,36 @@ describe("every action, called by another organization's member", () => {
         .filter(([, inner]) => typeof inner === "function")
         .map(([inner]) => `${name}.${inner}`);
     });
-    expect(
-      functions.filter(
-        (name) => !notActions.includes(name) && !covered.includes(name),
-      ),
-    ).toEqual([]);
+    expect(functions.sort()).toEqual(exportedFunctions);
   });
 
-  it("getOrganizationSettings: not found", async () => {
-    const { b } = await twoOrganizations();
-    expect(
-      await runAction(app.db, b, (ctx) => getOrganizationSettings(ctx)),
-    ).toMatchObject({ ok: false, reason: "not_found" });
+  it("exports no action definition outside the registry", () => {
+    // Namespaces, lists and objects too, since the package exports
+    // namespaces. Only the registry's own list may hold one.
+    const found: string[] = [];
+    const visit = (path: string, value: unknown, depth: number): void => {
+      if (typeof value !== "object" || value === null) return;
+      if (definitionProblems(value).length === 0) found.push(path);
+      else if (depth < 3) {
+        for (const [key, inner] of Object.entries(value)) {
+          visit(`${path}.${key}`, inner, depth + 1);
+        }
+      }
+    };
+    for (const [name, value] of Object.entries(exported)) {
+      if (name !== "actions") visit(name, value, 0);
+    }
+    expect(found).toEqual([]);
   });
 
-  it("setUpOrganization: writes only the caller's organization", async () => {
+  it.each(actions.map((action) => action.name))("%s", async (name) => {
     const { a, b } = await twoOrganizations();
-    const outcome = await runAction(app.db, b, (ctx) =>
-      setUpOrganization(ctx, { homeCurrency: "EUR" }),
-    );
-    expect(outcome.ok).toBe(true);
-    expect(await settingsOf(a.orgId)).toEqual([{ home_currency: "USD" }]);
-    expect(await settingsOf(b.orgId)).toEqual([{ home_currency: "EUR" }]);
+    await cases[name](a, b);
   });
 });
 
 describe("each action's own filter, where row-level security doesn't apply", () => {
-  it("getOrganizationSettings: not found", async () => {
+  it("get_organization_settings: not found", async () => {
     const { b } = await twoOrganizations();
     // The owner skips row-level security, so only the action's own filter
     // keeps A's row from B. One connection, so the role change sticks.
@@ -132,7 +160,7 @@ describe("each action's own filter, where row-level security doesn't apply", () 
     try {
       await owner.pool.query("set role none");
       expect(
-        await runAction(owner.db, b, (ctx) => getOrganizationSettings(ctx)),
+        await invokeAction(owner.db, b, "get_organization_settings", {}),
       ).toMatchObject({ ok: false, reason: "not_found" });
     } finally {
       await owner.close();
