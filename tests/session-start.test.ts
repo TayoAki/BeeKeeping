@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -37,7 +39,8 @@ function runHook(env: Record<string, string>, path = process.env.PATH ?? "") {
 }
 
 // Stand-ins for pnpm, npm, node and, when asked, ocr. Each logs how it was
-// called, so the cloud path runs offline and fast.
+// called, so the cloud path runs offline and fast. Each run gets a TMPDIR of
+// its own, so the test can see whether the hook left its log behind.
 function runWithStubs({
   ocr,
   npmExit = 0,
@@ -64,16 +67,18 @@ function runWithStubs({
 
   const project = tempDir("session-start-project-");
   const envFile = join(project, "session.env");
+  const tmp = tempDir("session-start-tmp-");
   const result = runHook(
     {
       CLAUDE_CODE_REMOTE: "true",
       CLAUDE_PROJECT_DIR: project,
       CLAUDE_ENV_FILE: envFile,
+      TMPDIR: tmp,
     },
     `${bin}:/usr/bin:/bin`,
   );
   const log = existsSync(calls) ? readFileSync(calls, "utf8") : "";
-  return { result, log, envFile };
+  return { result, log, envFile, leftovers: readdirSync(tmp) };
 }
 
 type Settings = {
@@ -103,8 +108,10 @@ describe("the SessionStart hook", () => {
   });
 
   it("installs with a frozen lockfile, never prompts, and prints one line", () => {
-    const { result, log } = runWithStubs({ ocr: true });
+    const { result, log, leftovers } = runWithStubs({ ocr: true });
     expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(leftovers).toEqual([]);
     expect(log).toContain(
       "pnpm install --frozen-lockfile --config.confirmModulesPurge=false",
     );
@@ -123,12 +130,31 @@ describe("the SessionStart hook", () => {
     expect(log).toContain(
       "npm install --global @alibaba-group/open-code-review@1.12.10",
     );
+    // npm's own output stays in the log, out of the session.
+    expect(result.stdout.trimEnd().split("\n")).toHaveLength(1);
   });
 
   it("fails when the ocr install fails", () => {
-    const { result } = runWithStubs({ ocr: false, npmExit: 1 });
+    const { result, leftovers } = runWithStubs({ ocr: false, npmExit: 1 });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("installing the ocr CLI failed");
+    expect(leftovers).toEqual([]);
+  });
+
+  it("runs when Claude Code gives it no env file", () => {
+    const bin = tempDir("session-start-bin-");
+    for (const name of ["pnpm", "node", "ocr"]) {
+      writeFileSync(join(bin, name), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    }
+    const result = runHook(
+      {
+        CLAUDE_CODE_REMOTE: "true",
+        CLAUDE_PROJECT_DIR: tempDir("session-start-project-"),
+      },
+      `${bin}:/usr/bin:/bin`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
   });
 
   it("writes each session variable once, however often it runs", () => {
@@ -137,7 +163,7 @@ describe("the SessionStart hook", () => {
     writeFileSync(join(bin, "pnpm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     writeFileSync(join(bin, "node"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     writeFileSync(join(bin, "ocr"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-    runHook(
+    const second = runHook(
       {
         CLAUDE_CODE_REMOTE: "true",
         CLAUDE_PROJECT_DIR: tempDir("session-start-project-"),
@@ -145,6 +171,7 @@ describe("the SessionStart hook", () => {
       },
       `${bin}:/usr/bin:/bin`,
     );
+    expect(second.status).toBe(0);
     expect(readFileSync(envFile, "utf8").trimEnd().split("\n")).toEqual([
       "export npm_config_update_notifier=false",
       "export pnpm_config_update_notifier=false",
@@ -163,13 +190,59 @@ describe("the SessionStart hook", () => {
         dependencies: { zod: "4.0.0" },
       }),
     );
+    const envFile = join(project, "session.env");
     const result = runHook({
       CLAUDE_CODE_REMOTE: "true",
       CLAUDE_PROJECT_DIR: project,
-      CLAUDE_ENV_FILE: join(project, "session.env"),
+      CLAUDE_ENV_FILE: envFile,
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("pnpm install --frozen-lockfile failed");
     expect(result.stderr).toContain("ERR_PNPM");
+    // The session still gets its variables when the install fails.
+    expect(readFileSync(envFile, "utf8")).toContain(
+      "export NEXT_TELEMETRY_DISABLED=1",
+    );
+  });
+
+  it("rebuilds node_modules without asking when pnpm must purge it", () => {
+    // Real pnpm, kept offline by a file: dependency. Moving the store makes
+    // pnpm rebuild node_modules, which it would otherwise stop to ask about.
+    const project = tempDir("session-start-project-");
+    mkdirSync(join(project, "dep"));
+    writeFileSync(
+      join(project, "dep", "package.json"),
+      JSON.stringify({ name: "dep", version: "1.0.0" }),
+    );
+    writeFileSync(
+      join(project, "package.json"),
+      JSON.stringify({
+        name: "probe",
+        private: true,
+        dependencies: { dep: "file:./dep" },
+      }),
+    );
+    const store = tempDir("session-start-store-");
+    const path = process.env.PATH ?? "";
+    const first = spawnSync("pnpm", ["install", "--offline"], {
+      cwd: project,
+      encoding: "utf8",
+      timeout: 30_000,
+      env: { PATH: path, HOME: store, npm_config_store_dir: join(store, "a") },
+    });
+    expect(first.status).toBe(0);
+    // An ocr stub keeps the hook away from npm.
+    const bin = tempDir("session-start-bin-");
+    writeFileSync(join(bin, "ocr"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    const result = runHook(
+      {
+        CLAUDE_CODE_REMOTE: "true",
+        CLAUDE_PROJECT_DIR: project,
+        npm_config_store_dir: join(store, "b"),
+      },
+      `${bin}:${path}`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
   });
 });
