@@ -3,3 +3,4 @@
 // instead of throwing for failures it expects.
 export { fail, ok } from "./result.ts";
 export type { Fail, Ok, Result } from "./result.ts";
+export * as money from "./money/index.ts";
