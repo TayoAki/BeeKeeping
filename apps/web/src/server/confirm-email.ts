@@ -31,10 +31,12 @@ function refuse(
  *
  * The token's signature and age are checked first, so only someone holding
  * a real link learns anything about the account. The rate limit for this
- * path applies. The router checks a request's origin only when it carries
- * cookies, and a confirmation signs the browser in, so the endpoint runs
- * the check signing in runs: a request a browser sends from another site
- * gets 403, with cookies or without.
+ * path applies. The endpoint takes only JSON, so a form on another site
+ * gets 415, and a script there needs a preflight the app never allows.
+ * The router checks a request's origin only when it carries cookies, and
+ * a confirmation signs the browser in, so the endpoint also runs the check
+ * signing in runs: a request from another site that gets this far gets
+ * 403, with cookies or without.
  */
 export function confirmWithPassword() {
   return {

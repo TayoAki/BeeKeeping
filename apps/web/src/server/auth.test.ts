@@ -308,12 +308,24 @@ describe("email and password", () => {
     });
     const link = await testAuth.linkFor(demo("crosssite"));
     const token = new URL(link).searchParams.get("token") ?? "";
-    // What a page on another site can make a browser send: its own origin,
-    // or the browser's fetch metadata with no origin at all.
+    // The headers a request from another site would carry if it got past
+    // the browser. A browser sends this JSON across sites only after a
+    // preflight the app never allows, and the router checks origins only
+    // for requests with cookies.
     const fromElsewhere: Record<string, string>[] = [
       { origin: "https://evil.example" },
       { origin: "https://evil.example", cookie: "theme=dark" },
       { "sec-fetch-site": "cross-site", "sec-fetch-mode": "cors" },
+      {
+        origin: "null",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "no-cors",
+      },
+      {
+        origin: "https://evil.example",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "navigate",
+      },
     ];
     for (const headers of fromElsewhere) {
       const reply = await handleAuthRequest(
