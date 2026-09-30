@@ -10,12 +10,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   authenticatorCode,
+  baseUrl,
   createTestAuth,
   testSecret,
   type Browser,
   type TestAuth,
 } from "./auth-test-browser.ts";
-import { logAuth } from "./auth.ts";
+import { handleAuthRequest, logAuth } from "./auth.ts";
 
 const password = "correct horse battery staple";
 const demo = (name: string) => `${name}@honeycomb-demo.test`;
@@ -297,6 +298,41 @@ describe("email and password", () => {
     const direct = await browser.get(`/verify-email?token=${token}`);
     expect(direct.status).toBe(404);
     expect(await browser.userId()).toBeNull();
+  });
+
+  it("refuses a confirmation posted from another site, with cookies or without", async () => {
+    await testAuth.browser().post("/sign-up/email", {
+      name: "Cross Site",
+      email: demo("crosssite"),
+      password,
+    });
+    const link = await testAuth.linkFor(demo("crosssite"));
+    const token = new URL(link).searchParams.get("token") ?? "";
+    // What a page on another site can make a browser send: its own origin,
+    // or the browser's fetch metadata with no origin at all.
+    const fromElsewhere: Record<string, string>[] = [
+      { origin: "https://evil.example" },
+      { origin: "https://evil.example", cookie: "theme=dark" },
+      { "sec-fetch-site": "cross-site", "sec-fetch-mode": "cors" },
+    ];
+    for (const headers of fromElsewhere) {
+      const reply = await handleAuthRequest(
+        testAuth.auth,
+        new Request(`${baseUrl}/api/auth/confirm-email`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-real-ip": "203.0.113.9",
+            ...headers,
+          },
+          body: JSON.stringify({ token, password }),
+        }),
+      );
+      expect(reply.status, JSON.stringify(headers)).toBe(403);
+      expect(reply.headers.getSetCookie(), JSON.stringify(headers)).toEqual([]);
+    }
+    // The link still waits for the address's owner.
+    expect(await testAuth.browser().confirm(link, password)).toBeUndefined();
   });
 
   it("checks callback addresses in tests too", async () => {

@@ -16,3 +16,9 @@ describe("response headers", () => {
     });
   });
 });
+
+describe("the dev server's log", () => {
+  it("leaves out server action calls, whose arguments hold what people type", () => {
+    expect(nextConfig.logging).toMatchObject({ serverFunctions: false });
+  });
+});

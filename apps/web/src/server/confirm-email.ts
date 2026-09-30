@@ -1,5 +1,9 @@
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthEndpoint } from "better-auth/api";
+import {
+  APIError,
+  createAuthEndpoint,
+  formCsrfMiddleware,
+} from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { verifyJWT } from "better-auth/crypto";
 import { z } from "zod";
@@ -26,9 +30,11 @@ function refuse(
  * password someone else chose.
  *
  * The token's signature and age are checked first, so only someone holding
- * a real link learns anything about the account. It's a Better Auth
- * endpoint, so the router's origin check and the rate limit for this path
- * apply, as they do to signing in.
+ * a real link learns anything about the account. The rate limit for this
+ * path applies. The router checks a request's origin only when it carries
+ * cookies, and a confirmation signs the browser in, so the endpoint runs
+ * the check signing in runs: a request a browser sends from another site
+ * gets 403, with cookies or without.
  */
 export function confirmWithPassword() {
   return {
@@ -38,6 +44,7 @@ export function confirmWithPassword() {
         confirmEmailPath,
         {
           method: "POST",
+          use: [formCsrfMiddleware],
           body: z.object({
             token: z.string().min(1).max(4096),
             password: z.string().min(1).max(128),

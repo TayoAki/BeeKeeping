@@ -4,11 +4,13 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   typedRoutes: true,
   // Sign-in and reset links carry tokens in the address. Keep them out of
-  // the dev server's request log.
+  // the dev server's request log. The log would also show each server
+  // action call with its arguments, which hold whatever people typed.
   logging: {
     incomingRequests: {
       ignore: [/\/api\/auth\//, /\/reset-password/, /\/confirm-email/],
     },
+    serverFunctions: false,
   },
   // next dev would write its own AGENTS.md and CLAUDE.md here. The ones at
   // the repo root already guide agents.
