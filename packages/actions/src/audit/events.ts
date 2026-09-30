@@ -1,6 +1,6 @@
-import { auditEvents } from "@beekeeping/db";
+import { agents, auditEvents } from "@beekeeping/db";
 import { ok } from "@beekeeping/services";
-import { and, desc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { defineAction } from "../registry/define.ts";
@@ -26,17 +26,41 @@ function dayAfter(date: string): Date {
 }
 
 /**
+ * The agents a list of events names, as the acting agent or as a token's
+ * agent. The log keeps only their ids.
+ */
+function agentIdsOf(
+  events: readonly {
+    actorAgentId: string | null;
+    tableName: string;
+    changes: unknown;
+  }[],
+): string[] {
+  const ids = new Set<string>();
+  for (const event of events) {
+    if (event.actorAgentId !== null) ids.add(event.actorAgentId);
+    const agentId = (event.changes as Record<string, unknown>).agent_id;
+    if (event.tableName === "api_tokens" && typeof agentId === "string") {
+      ids.add(agentId);
+    }
+  }
+  return [...ids];
+}
+
+/**
  * The audit log's newest events, for an admin: who changed what, when, and
- * the fields the table lists. Postgres triggers write the log, so this
- * reads it and nothing writes it.
+ * the fields the table lists, with the names of the agents they name.
+ * Postgres triggers write the log, so this reads it and nothing writes it.
+ * It's an admin action, so no agent reads the log: it copies what agents
+ * never see, such as agents and API tokens.
  */
 export const listAuditEvents = defineAction({
   name: "list_audit_events",
   description:
-    "Lists the newest events in the organization's audit log: who changed what and when, with the fields each table lists. Filters by table, by kind of change and by day.",
-  kind: "read",
+    "Lists the newest events in the organization's audit log: who changed what and when, with the fields each table lists and the names of the agents it names. Filters by table, by kind of change and by day.",
+  kind: "admin",
   role: "admin",
-  approval: "none",
+  approval: "never",
   input: z.object({
     table: z
       .string()
@@ -72,6 +96,8 @@ export const listAuditEvents = defineAction({
         id: z.string(),
         occurredAt: z.string(),
         actorUserId: z.string().nullable(),
+        actorAgentId: z.string().nullable(),
+        approvedByUserId: z.string().nullable(),
         tableName: z.string(),
         recordId: z.string(),
         action: z.enum(changeKinds),
@@ -80,6 +106,8 @@ export const listAuditEvents = defineAction({
     ),
     /** Every table the organization's log names, for a filter. */
     tables: z.array(z.string()),
+    /** The agents these events name, acting or as a token's agent. */
+    agents: z.array(z.object({ id: z.string(), name: z.string() })),
   }),
   run: async (ctx, input) => {
     const filters: SQL[] = [eq(auditEvents.orgId, ctx.orgId)];
@@ -113,17 +141,31 @@ export const listAuditEvents = defineAction({
          where names.table_name is not null
       )
       select table_name from names where table_name is not null`);
+    // Agents are revoked, never deleted, so each id has its name.
+    const agentIds = agentIdsOf(rows);
+    const named =
+      agentIds.length === 0
+        ? []
+        : await ctx.tx
+            .select({ id: agents.id, name: agents.name })
+            .from(agents)
+            .where(
+              and(eq(agents.orgId, ctx.orgId), inArray(agents.id, agentIds)),
+            );
     return ok({
       events: rows.map((row) => ({
         id: row.id,
         occurredAt: row.occurredAt.toISOString(),
         actorUserId: row.actorUserId,
+        actorAgentId: row.actorAgentId,
+        approvedByUserId: row.approvedByUserId,
         tableName: row.tableName,
         recordId: row.recordId,
         action: row.action as (typeof changeKinds)[number],
         changes: row.changes as Record<string, unknown>,
       })),
       tables: tables.rows.map(({ table_name }) => table_name),
+      agents: named,
     });
   },
 });

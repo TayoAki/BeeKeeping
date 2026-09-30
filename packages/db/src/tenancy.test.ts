@@ -22,6 +22,7 @@ type Relation = {
 };
 type Policy = {
   table: string;
+  permissive: "PERMISSIVE" | "RESTRICTIVE";
   roles: string[];
   qual: string | null;
   with_check: string | null;
@@ -99,7 +100,7 @@ beforeAll(async () => {
     (relation) => relation.kind === "r" || relation.kind === "p",
   );
   policies = await query<Policy>(`
-    select tablename as table, roles::text[] as roles, qual, with_check
+    select tablename as table, permissive, roles::text[] as roles, qual, with_check
       from pg_policies where schemaname = 'public'`);
 });
 afterAll(() => database.drop());
@@ -115,14 +116,26 @@ describe("row-level security", () => {
     expect(scoped.map((table) => table.name)).toContain(
       "organization_settings",
     );
+    // Each policy that lets rows through keeps to the organization. A
+    // restrictive one may narrow that further, and only by hiding a table
+    // from agents, as peopleOnly does.
+    const clauses = {
+      PERMISSIVE:
+        /^\(org_id = \( SELECT current_org_id\(\) AS current_org_id\)\)$/,
+      RESTRICTIVE:
+        /^\(\( SELECT current_agent_id\(\) AS current_agent_id\) IS NULL\)$/,
+    };
     for (const table of scoped) {
       const own = policies.filter((policy) => policy.table === table.name);
-      expect(own, table.name).not.toEqual([]);
+      expect(
+        own.filter((policy) => policy.permissive === "PERMISSIVE"),
+        table.name,
+      ).toHaveLength(1);
       for (const policy of own) {
         expect(policy.roles, table.name).toEqual(["beekeeping_app"]);
         for (const clause of [policy.qual, policy.with_check]) {
-          expect(clause, table.name).toMatch(
-            /^\(org_id = \( SELECT current_org_id\(\) AS current_org_id\)\)$/,
+          expect(clause, `${table.name} ${policy.permissive}`).toMatch(
+            clauses[policy.permissive],
           );
         }
       }

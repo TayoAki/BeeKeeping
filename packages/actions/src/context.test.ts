@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   openDatabase,
   organizationSettings,
@@ -6,14 +8,21 @@ import {
 import { createTestDatabase, type TestDatabase } from "@beekeeping/db/testing";
 import { fail, ok } from "@beekeeping/services";
 import { asOwner, demoMember } from "@beekeeping/testing";
-import { sql } from "drizzle-orm";
+import { DrizzleQueryError, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { DatabaseRefusal, runAction, type Principal } from "./context.ts";
+import {
+  DatabaseRefusal,
+  runAction,
+  withoutQuery,
+  type AgentPrincipal,
+  type PersonPrincipal,
+  type Principal,
+} from "./context.ts";
 
 let database: TestDatabase;
 let app: DatabaseHandle;
-let owner: Principal;
+let owner: PersonPrincipal;
 
 beforeAll(async () => {
   database = await createTestDatabase();
@@ -36,19 +45,49 @@ const settingsRows = () =>
   );
 
 describe("runAction", () => {
-  it("sets the organization and the person for its transaction only", async () => {
-    const inside = await runAction(app.db, owner, async (ctx) => {
-      const result = await ctx.tx.execute<{ org: string; person: string }>(
-        sql`select current_org_id() as org, current_user_id() as person`,
+  const settings = (principal: Principal) =>
+    runAction(app.db, principal, async (ctx) => {
+      const result = await ctx.tx.execute<Record<string, string | null>>(
+        sql`select current_org_id() as org, current_user_id() as person,
+                   current_agent_id() as agent, current_approver_id() as approver`,
       );
       return result.rows[0];
     });
-    expect(inside).toEqual({ org: owner.orgId, person: owner.userId });
+
+  it("sets the organization and the person for its transaction only", async () => {
+    expect(await settings(owner)).toEqual({
+      org: owner.orgId,
+      person: owner.userId,
+      agent: null,
+      approver: null,
+    });
 
     const after = await app.pool.query<{ org: string | null }>(
       "select current_org_id() as org",
     );
     expect(after.rows[0]?.org).toBeNull();
+  });
+
+  it("sets the agent and the person who approved, and no person, for an agent", async () => {
+    const agent: AgentPrincipal = {
+      kind: "agent",
+      orgId: owner.orgId,
+      agentId: randomUUID(),
+      role: "bookkeeper",
+      scope: "post",
+    };
+    expect(await settings(agent)).toEqual({
+      org: owner.orgId,
+      person: null,
+      agent: agent.agentId,
+      approver: null,
+    });
+    expect(await settings({ ...agent, approvedBy: owner.userId })).toEqual({
+      org: owner.orgId,
+      person: null,
+      agent: agent.agentId,
+      approver: owner.userId,
+    });
   });
 
   it("keeps what an action wrote when it succeeds", async () => {
@@ -112,5 +151,42 @@ describe("runAction", () => {
     );
     expect(everything).not.toContain("acct-000123456789");
     expect(everything).not.toContain("insert into");
+  });
+});
+
+describe("withoutQuery", () => {
+  it("keeps the query and its values out when the database gave no code", () => {
+    // As when the connection drops mid-query.
+    const failed = new DrizzleQueryError(
+      "select * from authenticate_api_token($1)",
+      ["acct-000123456789"],
+      new Error("Connection terminated unexpectedly"),
+    );
+    const scrubbed = withoutQuery(failed);
+    expect(scrubbed).toBeInstanceOf(Error);
+    const everything = JSON.stringify(
+      scrubbed,
+      Object.getOwnPropertyNames(scrubbed),
+    );
+    expect(everything).not.toContain("acct-000123456789");
+    expect(everything).not.toContain("authenticate_api_token");
+    // pg's own reason stays, since it holds no query.
+    expect(String(scrubbed)).toContain("Connection terminated unexpectedly");
+  });
+
+  it("drops a reason pg didn't word itself, which might hold a value", () => {
+    const failed = new DrizzleQueryError(
+      "select $1",
+      ["acct-000123456789"],
+      new Error("could not serialize acct-000123456789"),
+    );
+    expect(String(withoutQuery(failed))).toBe(
+      "Error: A query failed before the database answered.",
+    );
+  });
+
+  it("passes on any other error as it is", () => {
+    const own = new Error("broke halfway");
+    expect(withoutQuery(own)).toBe(own);
   });
 });

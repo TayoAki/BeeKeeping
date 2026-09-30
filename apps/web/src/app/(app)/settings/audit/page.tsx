@@ -18,6 +18,7 @@ import {
   kindNames,
   tableName,
   when,
+  type Actors,
   type Person,
 } from "./event-text.ts";
 
@@ -37,21 +38,28 @@ function text(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
-/** Who acted, with the member's address below their name. */
+/**
+ * Who acted: a member's name over their address, or an agent's name over
+ * who approved its change.
+ */
 function Actor({
-  actorUserId,
+  event,
   members,
+  agents,
 }: {
-  actorUserId: string | null;
+  event: Actors;
   members: ReadonlyMap<string, Person>;
+  agents: ReadonlyMap<string, string>;
 }) {
-  const actor = actorText(actorUserId, members);
-  if (actor.email === undefined) return <>{actor.name}</>;
+  const actor = actorText(event, members, agents);
+  const below = actor.email ?? actor.detail;
+  if (below === undefined) return <>{actor.name}</>;
   return (
     <>
       {actor.name}
       <br />
-      <span className="hint address">{actor.email}</span>
+      {/* Only an address may break anywhere to fit. */}
+      <span className={actor.email ? "hint address" : "hint"}>{below}</span>
     </>
   );
 }
@@ -75,6 +83,7 @@ function Results({
       </p>
     );
   }
+  const agents = new Map(outcome.agents.map((agent) => [agent.id, agent.name]));
   if (outcome.events.length === 0) {
     return (
       <p>
@@ -109,7 +118,7 @@ function Results({
                 </time>
               </td>
               <td>
-                <Actor actorUserId={event.actorUserId} members={members} />
+                <Actor event={event} members={members} agents={agents} />
               </td>
               <td>
                 {tableName(event.tableName)},{" "}
@@ -117,9 +126,11 @@ function Results({
               </td>
               <td>
                 <ul className="plain">
-                  {changeLines(event.action, event.changes).map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
+                  {changeLines(event.action, event.changes, agents).map(
+                    (line) => (
+                      <li key={line}>{line}</li>
+                    ),
+                  )}
                 </ul>
               </td>
             </tr>

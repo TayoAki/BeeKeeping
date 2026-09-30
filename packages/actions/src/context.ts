@@ -1,14 +1,33 @@
 import type { Database, Transaction } from "@beekeeping/db";
-import { sql } from "drizzle-orm";
+import { DrizzleQueryError, sql } from "drizzle-orm";
 
+import type { AgentRole, AgentScope } from "./access/agents.ts";
 import type { Role } from "./access/roles.ts";
 
-/** Who an action acts for: a member of one organization, in their role. */
-export type Principal = {
+/** A member of one organization, acting in their role. */
+export type PersonPrincipal = {
+  readonly kind: "person";
   readonly orgId: string;
   readonly userId: string;
   readonly role: Role;
 };
+
+/**
+ * An agent of one organization, acting in its role and within its scope.
+ * approvedBy is the id of the person who approved this call, when one had
+ * to. Nothing sets it before P1.12's approvals.
+ */
+export type AgentPrincipal = {
+  readonly kind: "agent";
+  readonly orgId: string;
+  readonly agentId: string;
+  readonly role: AgentRole;
+  readonly scope: AgentScope;
+  readonly approvedBy?: string;
+};
+
+/** Who an action acts for: a person or an agent, in one organization. */
+export type Principal = PersonPrincipal | AgentPrincipal;
 
 /**
  * What every action gets: the principal, and the transaction it reads and
@@ -43,6 +62,39 @@ export class DatabaseRefusal extends Error {
   }
 }
 
+/**
+ * pg's own reasons for a connection or a pool that failed. They're fixed
+ * text, with no query and no value in them.
+ */
+const driverReasons =
+  /^(timeout exceeded when trying to connect|Connection terminated( unexpectedly| due to connection timeout)?|Query read timeout|Client (has encountered a connection error|was closed) and is not queryable|Cannot use a pool after calling end on the pool)$/;
+
+/**
+ * An error to throw in place of a failed query's. Drizzle's holds the query
+ * and every parameter, such as a token's hash, so only Postgres's code and
+ * constraint go on, in a DatabaseRefusal. A query that failed with no code,
+ * such as one whose connection dropped, goes on as a plain error that keeps
+ * only a reason pg words itself. Any other error goes on as it is.
+ */
+export function withoutQuery(error: unknown): unknown {
+  const cause = (error as { cause?: { code?: unknown; constraint?: unknown } })
+    .cause;
+  if (typeof cause?.code === "string") {
+    return new DatabaseRefusal(
+      cause.code,
+      typeof cause.constraint === "string" ? cause.constraint : undefined,
+    );
+  }
+  if (error instanceof DrizzleQueryError) {
+    const reason =
+      cause instanceof Error && driverReasons.test(cause.message)
+        ? `: ${cause.message}`
+        : "";
+    return new Error(`A query failed before the database answered${reason}.`);
+  }
+  return error;
+}
+
 // Carries a failed result out of the transaction, so that it rolls back.
 class Refusal extends Error {
   readonly result: Failure;
@@ -55,11 +107,12 @@ class Refusal extends Error {
 
 /**
  * Runs one action in a transaction of its own. The transaction sets app.org_id
- * and app.user_id with set local, so row-level security shows only the
- * principal's organization, and the settings end with the transaction. The
- * action's writes commit when it succeeds. When it returns a failure or
- * throws, they roll back. A query the database refuses comes out as a
- * DatabaseRefusal.
+ * with set local, so row-level security shows only the principal's
+ * organization, and app.user_id or app.agent_id, with app.approver_id, so
+ * the audit log names who acted. The settings end with the transaction.
+ * The action's writes commit when it succeeds. When it returns a failure or
+ * throws, they roll back. A failed query comes out without the query, as
+ * withoutQuery says.
  */
 export async function runAction<Outcome>(
   db: Database,
@@ -68,8 +121,13 @@ export async function runAction<Outcome>(
 ): Promise<Outcome> {
   try {
     return await db.transaction(async (tx) => {
+      const person = principal.kind === "person" ? principal : undefined;
+      const agent = principal.kind === "agent" ? principal : undefined;
       await tx.execute(
-        sql`select set_config('app.org_id', ${principal.orgId}, true), set_config('app.user_id', ${principal.userId}, true)`,
+        sql`select set_config('app.org_id', ${principal.orgId}, true),
+                   set_config('app.user_id', ${person?.userId ?? ""}, true),
+                   set_config('app.agent_id', ${agent?.agentId ?? ""}, true),
+                   set_config('app.approver_id', ${agent?.approvedBy ?? ""}, true)`,
       );
       const outcome = await action({ ...principal, tx });
       if (isFailure(outcome)) throw new Refusal(outcome);
@@ -81,17 +139,6 @@ export async function runAction<Outcome>(
     });
   } catch (error) {
     if (error instanceof Refusal) return error.result as Outcome;
-    // Drizzle's error holds the query and every parameter. Only Postgres's
-    // code and constraint go on.
-    const cause = (
-      error as { cause?: { code?: unknown; constraint?: unknown } }
-    ).cause;
-    if (typeof cause?.code === "string") {
-      throw new DatabaseRefusal(
-        cause.code,
-        typeof cause.constraint === "string" ? cause.constraint : undefined,
-      );
-    }
-    throw error;
+    throw withoutQuery(error);
   }
 }

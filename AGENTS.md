@@ -203,10 +203,32 @@ Databases:
   success's fields. One that leaves a field out throws when it loads.
 - `invokeAction` is the only way to call an action. It checks the role and
   the input, runs the action through `runAction`, and checks the output.
-  `runAction` opens a transaction and sets `app.org_id` and `app.user_id`
-  with `set local`. It's the only code that sets them: an action that calls
-  `set_config` itself can reach any organization. Actions still filter by
-  `ctx.orgId`; row-level security catches what they miss.
+  `runAction` opens a transaction and sets `app.org_id` with `set local`,
+  and `app.user_id` for a person, or `app.agent_id` and `app.approver_id`
+  for an agent, so the audit log names who acted. It's the only code that
+  sets them: an action that calls `set_config` itself can reach any
+  organization. Actions still filter by `ctx.orgId`; row-level security
+  catches what they miss.
+- A principal is a person or an agent (`PersonPrincipal`,
+  `AgentPrincipal` in `packages/actions/src/context.ts`). An agent has a
+  role, never owner, and a scope: read calls read actions, draft adds
+  drafts, and post adds posts. `invokeAction` never lets an agent call an
+  admin action or one whose approval is never, such as `list_audit_events`,
+  since the log copies agents and tokens. A post whose approval is policy
+  or ask answers `approval_required` unless the principal's `approvedBy`
+  names the person who approved it, and nothing sets that until P1.12 adds
+  the queue. Before an agent's action runs, `invokeAction` asks
+  `working_agent()` in the same transaction, and refuses an agent that's
+  revoked, or whose role or scope isn't the one its principal claims.
+  Admins manage agents and their API tokens with `create_agent`,
+  `create_api_token`, `list_agents`, `revoke_api_token` and
+  `revoke_agent`. A token is shown once, and only its SHA-256 is stored,
+  where the app can't read it. A door that takes tokens turns one into a
+  principal with `authenticateApiToken`, then calls `invokeAction`, so the
+  token decides the organization, the role and the scope, never the
+  request. `agents` and `api_tokens` have a second, restrictive policy
+  that hides them from an agent's transaction, and the app may only set
+  their `revoked_at`, once.
 - The web app calls actions with `invokeForMember` in
   `apps/web/src/server/actions.ts`, which builds the principal from the
   session, never from the request. Client components call the one server

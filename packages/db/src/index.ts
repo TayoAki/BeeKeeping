@@ -12,5 +12,6 @@ export {
 } from "./client.ts";
 export { pingDatabase, type PingFailure } from "./health.ts";
 export * as authSchema from "./schema/auth.ts";
+export { agents, apiTokens } from "./schema/agents.ts";
 export { auditEvents } from "./schema/audit.ts";
 export { organizationSettings } from "./schema/organization.ts";

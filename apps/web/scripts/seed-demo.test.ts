@@ -127,7 +127,12 @@ describe("the demo company", () => {
     expect(
       await invokeAction(
         app.db,
-        { orgId: organizationId, userId: userId ?? "", role: "viewer" },
+        {
+          kind: "person",
+          orgId: organizationId,
+          userId: userId ?? "",
+          role: "viewer",
+        },
         "get_organization_settings",
         {},
       ),

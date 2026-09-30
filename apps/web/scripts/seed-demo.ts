@@ -139,7 +139,7 @@ export async function seedDemoCompany({
 
   const settings = await invokeAction(
     app,
-    { orgId: organizationId, userId: ownerId, role: "owner" },
+    { kind: "person", orgId: organizationId, userId: ownerId, role: "owner" },
     "set_up_organization",
     { homeCurrency: demoCompany.homeCurrency },
   );

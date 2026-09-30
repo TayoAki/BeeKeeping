@@ -5,7 +5,9 @@
 // are refused for every role, the owner's included. Only the owner, which
 // migrations and test setup log in as, can add a row directly or turn that
 // refusal off. Migration 0003 holds the trigger function, the triggers and
-// the rules that keep the log unchanged.
+// the rules that keep the log unchanged. 0004 adds the agent and the
+// approver, whose columns default to the transaction's settings, so the
+// trigger function fills them without naming them.
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -36,9 +38,18 @@ export const auditEvents = pgTable(
     seq: bigint("seq", { mode: "number" }).generatedAlwaysAsIdentity(),
     /**
      * The person the transaction acted for, from app.user_id. Null when no
-     * person did, such as a migration.
+     * person did, such as a migration or an agent.
      */
     actorUserId: uuid("actor_user_id"),
+    /** The agent the transaction acted for, from app.agent_id. */
+    actorAgentId: uuid("actor_agent_id").default(sql`current_agent_id()`),
+    /**
+     * The person who approved an agent's change, from app.approver_id.
+     * Null when nobody had to.
+     */
+    approvedByUserId: uuid("approved_by_user_id").default(
+      sql`current_approver_id()`,
+    ),
     tableName: text("table_name").notNull(),
     /** The changed row's key, as text. */
     recordId: text("record_id").notNull(),

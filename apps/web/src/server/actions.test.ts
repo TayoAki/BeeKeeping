@@ -36,7 +36,7 @@ describe("invokeForMember", () => {
     });
     expect(invokeAction).toHaveBeenCalledExactlyOnceWith(
       db,
-      { orgId, userId, role: "bookkeeper" },
+      { kind: "person", orgId, userId, role: "bookkeeper" },
       "set_up_organization",
       input,
     );

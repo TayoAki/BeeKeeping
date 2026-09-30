@@ -3,11 +3,25 @@
 // a principal it built from its own sign-in, never from the request.
 import type { Database } from "@beekeeping/db";
 import { fail, type Fail, type Ok } from "@beekeeping/services";
+import { sql } from "drizzle-orm";
 import type { z } from "zod";
 
+import { scopeAllows } from "../access/agents.ts";
 import { roleAtLeast } from "../access/roles.ts";
-import { runAction, type Principal } from "../context.ts";
+import {
+  createAgent,
+  createApiToken,
+  listAgents,
+  revokeAgent,
+  revokeApiToken,
+} from "../agents/agents.ts";
 import { listAuditEvents } from "../audit/events.ts";
+import {
+  runAction,
+  type ActionContext,
+  type AgentPrincipal,
+  type Principal,
+} from "../context.ts";
 import {
   getOrganizationSettings,
   setUpOrganization,
@@ -16,8 +30,13 @@ import type { ActionDefinition, Message, SuccessOutput } from "./define.ts";
 
 /** Every action. The doors offer these and nothing else. */
 export const actions = [
+  createAgent,
+  createApiToken,
   getOrganizationSettings,
+  listAgents,
   listAuditEvents,
+  revokeAgent,
+  revokeApiToken,
   setUpOrganization,
 ] as const;
 
@@ -38,7 +57,7 @@ export type InputIssue = { readonly path: string; readonly message: string };
 
 /** How invokeAction refuses before an action runs. */
 export type InvokeFailure =
-  | Fail<"unknown_action" | "forbidden", Message>
+  | Fail<"unknown_action" | "forbidden" | "approval_required", Message>
   | Fail<"invalid_input", Message & { readonly issues: InputIssue[] }>;
 
 /** What calling an action by name comes back with. */
@@ -60,15 +79,50 @@ export function findAction(name: unknown): ActionDefinition | undefined {
 const issueLimit = 20;
 
 /**
+ * Why an agent may not call this action at all, or undefined when it may.
+ * Agents never call an action marked never, which every admin action is,
+ * and call only the kinds their scope reaches.
+ */
+function agentRefusal(
+  agent: AgentPrincipal,
+  action: ActionDefinition,
+): InvokeFailure | undefined {
+  if (action.approval === "never") {
+    return fail("forbidden", {
+      message: "Agents can't do that. A person in the organization can.",
+    });
+  }
+  if (!scopeAllows(agent.scope, action.kind)) {
+    return fail("forbidden", {
+      message: "This agent's scope doesn't allow that.",
+    });
+  }
+  return undefined;
+}
+
+/**
+ * Whether the database backs the agent a call acts for: the agent works,
+ * with the role and scope its principal claims. A principal built before
+ * the agent was revoked, or one made up, gets no further.
+ */
+async function agentWorks(
+  ctx: ActionContext,
+  agent: AgentPrincipal,
+): Promise<boolean> {
+  const found = await ctx.tx.execute<{ role: string; scope: string }>(
+    sql`select role, scope from working_agent()`,
+  );
+  const [row] = found.rows;
+  return row?.role === agent.role && row.scope === agent.scope;
+}
+
+/**
  * Runs one action for a principal, with the checks every door shares: the
- * principal's role, then the input schema, then the action in a
- * transaction of its own, then the output schema. A success keeps only the
- * fields its schema names, and a failure only its reason and message. An
- * answer that is neither, or a success its schema refuses, is a bug: it
- * throws, and the action's writes roll back.
- *
- * People call every action their role allows. Agents arrive in P0.11,
- * which adds scopes and the approval categories.
+ * principal's role, then for an agent its scope, then the input schema,
+ * then the action in a transaction of its own, where an agent must still
+ * work and have the approval the action needs, then the output schema. A success keeps only the fields its schema names, and a failure
+ * only its reason and message. An answer that is neither, or a success its
+ * schema refuses, is a bug: it throws, and the action's writes roll back.
  */
 export async function invokeDefinition(
   db: Database,
@@ -83,6 +137,11 @@ export async function invokeDefinition(
       message: "Your role in this organization doesn't allow that.",
     });
   }
+  const agent = principal.kind === "agent" ? principal : undefined;
+  if (agent) {
+    const refusal = agentRefusal(agent, action);
+    if (refusal) return refusal;
+  }
   const parsed = action.input.safeParse(input);
   if (!parsed.success) {
     // zod reports each bad item of a list, so a long list could fill the
@@ -96,6 +155,20 @@ export async function invokeDefinition(
     });
   }
   return runAction(db, principal, async (ctx) => {
+    if (agent && !(await agentWorks(ctx, agent))) {
+      return fail("forbidden", {
+        message: "This agent has been revoked, or isn't this organization's.",
+      });
+    }
+    // A post that a person approves, by policy or each time, waits for
+    // one, once the input is right and the agent works. P1.12 adds the
+    // queue and the policies. Until then an agent's post runs only when
+    // its principal names the person who approved it.
+    if (agent && action.approval !== "none" && !agent.approvedBy) {
+      return fail("approval_required", {
+        message: "A person in the organization needs to approve this first.",
+      });
+    }
     const answer = ((await action.run(ctx, parsed.data)) ?? {}) as Record<
       string,
       unknown

@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { asApp } from "./testing/as-app.ts";
 import {
   createTestDatabase,
   postgresError,
@@ -53,29 +54,6 @@ afterAll(async () => {
   await database.drop();
 });
 
-/** Runs SQL as the app does: its role, one organization, one person. */
-async function asApp(
-  orgId: string,
-  userId: string | undefined,
-  text: string,
-  values: unknown[] = [],
-) {
-  await app.query("begin");
-  try {
-    await app.query("select set_config('app.org_id', $1, true)", [orgId]);
-    if (userId) {
-      await app.query("select set_config('app.user_id', $1, true)", [userId]);
-    }
-    await app.query("set local role beekeeping_app");
-    const result = await app.query(text, values);
-    await app.query("commit");
-    return result;
-  } catch (error) {
-    await app.query("rollback");
-    throw error;
-  }
-}
-
 async function eventsOf(orgId: string): Promise<Event[]> {
   return (
     await owner.query<Event>(
@@ -114,19 +92,24 @@ describe("the audit log", () => {
     const orgId = randomUUID();
     const userId = randomUUID();
     const { rows } = await asApp(
-      orgId,
-      userId,
+      app,
+      { orgId, userId },
       "insert into vault_test (org_id, label, api_secret) values ($1, 'Payments (demo)', 'secret one') returning id",
       [orgId],
     );
     const id = (rows[0] as { id: string }).id;
     await asApp(
-      orgId,
-      userId,
+      app,
+      { orgId, userId },
       "update vault_test set label = 'Payments, renamed (demo)', api_secret = 'secret two' where id = $1",
       [id],
     );
-    await asApp(orgId, userId, "delete from vault_test where id = $1", [id]);
+    await asApp(
+      app,
+      { orgId, userId },
+      "delete from vault_test where id = $1",
+      [id],
+    );
     expect(await eventsOf(orgId)).toEqual([
       {
         table_name: "vault_test",
@@ -155,15 +138,15 @@ describe("the audit log", () => {
   it("leaves nothing for a change to a field the table doesn't list", async () => {
     const orgId = randomUUID();
     const { rows } = await asApp(
-      orgId,
-      randomUUID(),
+      app,
+      { orgId, userId: randomUUID() },
       "insert into vault_test (org_id, label, api_secret) values ($1, 'Payroll (demo)', 'secret one') returning id",
       [orgId],
     );
     const id = (rows[0] as { id: string }).id;
     await asApp(
-      orgId,
-      randomUUID(),
+      app,
+      { orgId, userId: randomUUID() },
       "update vault_test set api_secret = 'secret two' where id = $1",
       [id],
     );
@@ -175,8 +158,8 @@ describe("the audit log", () => {
   it("names no one when no person acted", async () => {
     const orgId = randomUUID();
     await asApp(
-      orgId,
-      undefined,
+      app,
+      { orgId },
       "insert into vault_test (org_id, label, api_secret) values ($1, 'Imports (demo)', 'secret')",
       [orgId],
     );
@@ -188,15 +171,15 @@ describe("the audit log", () => {
     const theirs = randomUUID();
     for (const orgId of [mine, theirs]) {
       await asApp(
-        orgId,
-        randomUUID(),
+        app,
+        { orgId, userId: randomUUID() },
         "insert into vault_test (org_id, label, api_secret) values ($1, 'Bank feed (demo)', 'secret')",
         [orgId],
       );
     }
     const { rows } = await asApp(
-      mine,
-      randomUUID(),
+      app,
+      { orgId: mine, userId: randomUUID() },
       "select org_id from audit_events",
     );
     expect(rows).toEqual([{ org_id: mine }]);
@@ -207,7 +190,9 @@ describe("the audit log", () => {
       `insert into audit_events (org_id, table_name, record_id, action, changes)
          values (current_org_id(), 'vault_test', 'x', 'insert', '{}')`,
     ]) {
-      const error = await postgresError(asApp(mine, randomUUID(), statement));
+      const error = await postgresError(
+        asApp(app, { orgId: mine, userId: randomUUID() }, statement),
+      );
       expect(error.code, statement).toBe("42501");
     }
   });
@@ -218,8 +203,8 @@ describe("the audit log", () => {
     // organization's log, naming anyone.
     const error = await postgresError(
       asApp(
-        randomUUID(),
-        randomUUID(),
+        app,
+        { orgId: randomUUID(), userId: randomUUID() },
         `create temp table forged (id uuid primary key, org_id uuid not null, label text) on commit drop;
          create trigger forged_audit after insert on forged
            for each row execute function public.audit_row('id', 'label')`,
@@ -231,8 +216,8 @@ describe("the audit log", () => {
   it("can't be changed by the owner either", async () => {
     const orgId = randomUUID();
     await asApp(
-      orgId,
-      randomUUID(),
+      app,
+      { orgId, userId: randomUUID() },
       "insert into vault_test (org_id, label, api_secret) values ($1, 'Payouts (demo)', 'secret')",
       [orgId],
     );

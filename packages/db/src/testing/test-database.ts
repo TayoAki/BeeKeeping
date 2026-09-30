@@ -1,3 +1,4 @@
+import pg from "pg";
 import { inject } from "vitest";
 
 import { adminQuery, databaseUrl, uniqueName, withLogin } from "./admin.ts";
@@ -62,4 +63,49 @@ export async function postgresError(
     };
   }
   throw new Error("It didn't fail.");
+}
+
+/**
+ * Runs call while another transaction, logged in as url's owner, holds the
+ * rows the statements change, and commits them once call waits for one of
+ * those rows. Answers what call answers. It throws when call never waits,
+ * since then the two never overlapped.
+ */
+export async function racing<T>(
+  url: string,
+  statements: readonly (readonly [string, unknown[]])[],
+  call: () => Promise<T>,
+): Promise<T> {
+  const other = new pg.Client({ connectionString: url });
+  await other.connect();
+  try {
+    await other.query("begin");
+    for (const [text, values] of statements) await other.query(text, values);
+    let settled = false;
+    const answer = call().finally(() => {
+      settled = true;
+    });
+    // Caught here and awaited below, so a failure isn't unhandled meanwhile.
+    answer.catch(() => undefined);
+    for (let tries = 0; ; tries += 1) {
+      // Postgres keeps the sessions it listed first for the rest of a
+      // transaction, so each look starts afresh. Only the sessions this
+      // transaction holds up count.
+      await other.query("select pg_stat_clear_snapshot()");
+      const { rows } = await other.query<{ waiting: number }>(
+        `select count(*)::int as waiting from pg_stat_activity
+          where pg_backend_pid() = any(pg_blocking_pids(pid))`,
+      );
+      if ((rows[0]?.waiting ?? 0) > 0) break;
+      if (settled || tries === 200) {
+        await other.query("rollback");
+        throw new Error("The call never waited for the other transaction.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    await other.query("commit");
+    return await answer;
+  } finally {
+    await other.end();
+  }
 }

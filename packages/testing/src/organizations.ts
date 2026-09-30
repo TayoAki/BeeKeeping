@@ -24,7 +24,7 @@ export async function demoMember<Role extends string>(
   ownerUrl: string,
   name: string,
   role: Role,
-): Promise<{ orgId: string; userId: string; role: Role }> {
+): Promise<{ kind: "person"; orgId: string; userId: string; role: Role }> {
   const [user] = await asOwner<{ id: string }>(
     ownerUrl,
     "insert into users (name, email, email_verified) values ($1, $2, true) returning id",
@@ -41,5 +41,5 @@ export async function demoMember<Role extends string>(
     "insert into members (organization_id, user_id, role) values ($1, $2, $3)",
     [organization.id, user.id, role],
   );
-  return { orgId: organization.id, userId: user.id, role };
+  return { kind: "person", orgId: organization.id, userId: user.id, role };
 }

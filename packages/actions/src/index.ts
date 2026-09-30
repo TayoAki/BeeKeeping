@@ -13,6 +13,14 @@ export {
   type Role,
 } from "./access/roles.ts";
 export {
+  agentRoles,
+  agentScopes,
+  scopeAllows,
+  type AgentRole,
+  type AgentScope,
+} from "./access/agents.ts";
+export { authenticateApiToken } from "./agents/authenticate.ts";
+export {
   mayChangeRole,
   mayInviteAs,
   mayRemove,
@@ -25,6 +33,8 @@ export { isPersonName, personNameLimit } from "./auth/name.ts";
 export {
   DatabaseRefusal,
   type ActionContext,
+  type AgentPrincipal,
+  type PersonPrincipal,
   type Principal,
 } from "./context.ts";
 export type { OrganizationSettings } from "./organization/settings.ts";

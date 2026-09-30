@@ -32,6 +32,7 @@ export async function invokeForMember<Name extends ActionName>(
   return invokeAction(
     handle.db,
     {
+      kind: "person",
       orgId: membership.organizationId,
       userId: session.user.id,
       role: membership.role,

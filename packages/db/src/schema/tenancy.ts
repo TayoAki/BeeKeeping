@@ -28,3 +28,19 @@ export function authOnly(table: string) {
     withCheck: sql`true`,
   });
 }
+
+/**
+ * A second policy for a table that only people may use, such as agents and
+ * their tokens: with an agent in app.agent_id, the app sees and writes
+ * nothing there, whatever the organization. Migration 0004 makes
+ * current_agent_id().
+ */
+export function peopleOnly(table: string) {
+  return pgPolicy(`${table}_people_only`, {
+    as: "restrictive",
+    for: "all",
+    to: appRole,
+    using: sql`(select current_agent_id()) is null`,
+    withCheck: sql`(select current_agent_id()) is null`,
+  });
+}

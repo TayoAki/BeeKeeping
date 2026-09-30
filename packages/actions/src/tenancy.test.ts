@@ -17,10 +17,12 @@ import { asOwner, demoMember } from "@beekeeping/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { authenticateApiToken } from "./agents/authenticate.ts";
 import { runAction, type Principal } from "./context.ts";
 import * as exported from "./index.ts";
 import { definitionProblems } from "./registry/define.ts";
 import { actions, invokeAction, type ActionName } from "./registry/registry.ts";
+import { makeAgent } from "./testing/agents.ts";
 
 let database: TestDatabase;
 let app: DatabaseHandle;
@@ -67,14 +69,53 @@ afterAll(async () => {
   await database.drop();
 });
 
+/** An agent of A's with a token, made by A's owner. */
+const agentOf = (a: Principal) => makeAgent(app.db, a);
+
+/** A's agents and their tokens, as A's owner lists them. */
+async function agentsOf(a: Principal) {
+  const listed = await invokeAction(app.db, a, "list_agents", {});
+  if (!listed.ok) throw new Error(`No list: ${listed.reason}`);
+  return listed.agents;
+}
+
 // One case for each registered action: B's member calls it while A has
 // data. The type asks for a case for every name in the registry.
 const cases: Record<ActionName, (a: Principal, b: Principal) => Promise<void>> =
   {
+    create_agent: async (a, b) => {
+      await agentOf(a);
+      // Names belong to an organization, so B may use A's.
+      expect(
+        await invokeAction(app.db, b, "create_agent", {
+          name: "Bill runner (demo)",
+          role: "viewer",
+          scope: "read",
+        }),
+      ).toMatchObject({ ok: true, agent: { role: "viewer" } });
+      expect(await agentsOf(a)).toMatchObject([
+        { role: "bookkeeper", tokens: [{ revokedAt: null }] },
+      ]);
+      expect(await agentsOf(b)).toMatchObject([{ role: "viewer", tokens: [] }]);
+    },
+    create_api_token: async (a, b) => {
+      const { agent } = await agentOf(a);
+      expect(
+        await invokeAction(app.db, b, "create_api_token", {
+          agentId: agent.id,
+        }),
+      ).toMatchObject({ ok: false, reason: "not_found" });
+      expect(await agentsOf(a)).toMatchObject([{ tokens: [{}] }]);
+    },
     get_organization_settings: async (_a, b) => {
       expect(
         await invokeAction(app.db, b, "get_organization_settings", {}),
       ).toMatchObject({ ok: false, reason: "not_found" });
+    },
+    list_agents: async (a, b) => {
+      await agentOf(a);
+      expect(await agentsOf(a)).toHaveLength(1);
+      expect(await agentsOf(b)).toEqual([]);
     },
     list_audit_events: async (a, b) => {
       // Setting A's currency left an event in A's log, and none in B's.
@@ -88,7 +129,24 @@ const cases: Record<ActionName, (a: Principal, b: Principal) => Promise<void>> =
         ok: true,
         events: [],
         tables: [],
+        agents: [],
       });
+    },
+    revoke_agent: async (a, b) => {
+      const { agent, token, principal } = await agentOf(a);
+      expect(
+        await invokeAction(app.db, b, "revoke_agent", { agentId: agent.id }),
+      ).toMatchObject({ ok: false, reason: "not_found" });
+      expect(await authenticateApiToken(app.db, token)).toEqual(principal);
+    },
+    revoke_api_token: async (a, b) => {
+      const { apiToken, token, principal } = await agentOf(a);
+      expect(
+        await invokeAction(app.db, b, "revoke_api_token", {
+          tokenId: apiToken.id,
+        }),
+      ).toMatchObject({ ok: false, reason: "not_found" });
+      expect(await authenticateApiToken(app.db, token)).toEqual(principal);
     },
     set_up_organization: async (a, b) => {
       const outcome = await invokeAction(app.db, b, "set_up_organization", {
@@ -105,6 +163,7 @@ const cases: Record<ActionName, (a: Principal, b: Principal) => Promise<void>> =
 // fails the test until it's listed here on purpose.
 const exportedFunctions = [
   "DatabaseRefusal",
+  "authenticateApiToken",
   "findAction",
   "invokeAction",
   "isOrganizationName",
@@ -115,6 +174,7 @@ const exportedFunctions = [
   "mayRemove",
   "maySignInByLink",
   "roleAtLeast",
+  "scopeAllows",
   "startingOrganization",
 ];
 
@@ -194,6 +254,48 @@ describe("each action's own filter, where row-level security doesn't apply", () 
     } finally {
       await owner.close();
     }
+  });
+});
+
+describe("each agent action's own filter, where row-level security doesn't apply", () => {
+  it("create_api_token, list_agents, revoke_agent, revoke_api_token and list_audit_events' names: nothing of A's", async () => {
+    const { a, b } = await twoOrganizations();
+    const { agent, apiToken, token, principal } = await agentOf(a);
+    // B's log names A's agent, as a forged row might.
+    await asOwner(
+      database.url,
+      `insert into audit_events (org_id, actor_agent_id, table_name, record_id, action, changes)
+         values ($1, $2, 'organization_settings', 'b1', 'insert', '{}')`,
+      [b.orgId, agent.id],
+    );
+    // As above: the owner skips row-level security.
+    const owner = openDatabase(database.url, { max: 1 });
+    try {
+      await owner.pool.query("set role none");
+      for (const [name, input] of [
+        ["create_api_token", { agentId: agent.id }],
+        ["revoke_agent", { agentId: agent.id }],
+        ["revoke_api_token", { tokenId: apiToken.id }],
+      ] as const) {
+        expect(
+          await invokeAction(owner.db, b, name, input),
+          name,
+        ).toMatchObject({ ok: false, reason: "not_found" });
+      }
+      expect(await invokeAction(owner.db, b, "list_agents", {})).toEqual({
+        ok: true,
+        agents: [],
+      });
+      expect(
+        await invokeAction(owner.db, b, "list_audit_events", {}),
+      ).toMatchObject({ ok: true, events: [{ recordId: "b1" }], agents: [] });
+    } finally {
+      await owner.close();
+    }
+    expect(await authenticateApiToken(app.db, token)).toEqual(principal);
+    expect(await agentsOf(a)).toMatchObject([
+      { revokedAt: null, tokens: [{ revokedAt: null }] },
+    ]);
   });
 });
 
