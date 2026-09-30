@@ -19,6 +19,7 @@
     "playwright.config.ts",
     "src",
     "e2e",
+    "scripts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

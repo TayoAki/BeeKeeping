@@ -4,7 +4,13 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import {
+  errors,
+  expect,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 export const password = "correct horse battery staple";
 
@@ -52,6 +58,60 @@ export async function signUp(
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Confirm and sign in" }).click();
   await page.waitForURL((url) => url.pathname !== "/confirm-email");
+}
+
+/**
+ * Waits until React has taken over an element, so the page handles what
+ * happens to it. Before that, the browser would submit a form itself.
+ */
+export async function hydrated(locator: Locator): Promise<void> {
+  const element = await locator.elementHandle();
+  try {
+    await locator
+      .page()
+      .waitForFunction(
+        (node) =>
+          node !== null &&
+          Object.keys(node).some((key) => key.startsWith("__reactFiber$")),
+        element,
+      );
+  } catch (error) {
+    // Only a wait that ran out means the page never came to life. Ctrl-C,
+    // which closes the browser, fails the wait too.
+    if (!(error instanceof errors.TimeoutError)) throw error;
+    throw new Error(
+      "The page never came to life: React didn't take over the form, so nothing was submitted.",
+      { cause: error },
+    );
+  }
+}
+
+/**
+ * Signs in with the password form. When sign-in is refused, it throws with
+ * the form's own message rather than wait for a timeout.
+ */
+export async function signIn(
+  page: Page,
+  { email, password }: { email: string; password: string },
+): Promise<void> {
+  await page.goto("/sign-in");
+  const form = page.getByRole("form", { name: "With your password" });
+  await hydrated(form);
+  await form.getByLabel("Email").fill(email);
+  await form.getByLabel("Password").fill(password);
+  await form.getByRole("button", { name: "Sign in" }).click();
+  // Either the page moves on, or the form says why it didn't.
+  const alert = form.getByRole("alert");
+  const movedOn = page
+    .waitForURL((url) => url.pathname !== "/sign-in")
+    .then(() => true);
+  const refused = alert.waitFor().then(() => false);
+  for (const waiting of [movedOn, refused]) waiting.catch(() => undefined);
+  if (!(await Promise.race([movedOn, refused]))) {
+    throw new Error(
+      `The sign-in form says: ${(await alert.innerText()).trim()}`,
+    );
+  }
 }
 
 /** Signs up, confirms the address and creates an organization. */

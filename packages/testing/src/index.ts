@@ -1,4 +1,4 @@
-// Test helpers: factories, the demo company and the ledger property suite.
-// Only tests (*.test.ts) import this package. Scripts that load the demo
-// company run from this package, so no app or other package imports it.
+// Test helpers: factories and the ledger property suite. Only tests
+// (*.test.ts) import this package. The demo company lives in
+// apps/web/scripts, beside the scripts that load it.
 export { asOwner, demoMember } from "./organizations.ts";

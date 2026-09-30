@@ -56,7 +56,7 @@ export function ConfirmEmailForm({
   }
 
   return (
-    <form onSubmit={submit}>
+    <form method="post" onSubmit={submit}>
       <p>
         Enter your BeeKeeping password to show the account is yours. If you
         reset it after signing up, use the new one.

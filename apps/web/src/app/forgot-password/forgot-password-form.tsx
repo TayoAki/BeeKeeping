@@ -31,7 +31,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={submit}>
+    <form method="post" onSubmit={submit}>
       <label htmlFor="email">Email</label>
       <input
         id="email"

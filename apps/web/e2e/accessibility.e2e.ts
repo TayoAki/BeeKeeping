@@ -7,6 +7,7 @@ import {
   expectAccessible,
   linkFor,
   password,
+  signIn,
   signUp,
   signUpOwner,
   type SignedIn,
@@ -150,10 +151,7 @@ for (const theme of ["light", "dark"] as const) {
     }) => {
       const context = await browser.newContext({ colorScheme: theme });
       const page = await context.newPage();
-      await page.goto("/sign-in");
-      await page.locator("#email").fill(owner.email);
-      await page.locator("#password").fill(password);
-      await page.getByRole("button", { name: "Sign in" }).click();
+      await signIn(page, { email: owner.email, password });
       await expectHeading(page, "Choose an organization");
       await expectAccessible(page, `${theme} choose an organization`);
       await context.close();

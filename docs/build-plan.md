@@ -111,7 +111,8 @@ packages/services   The how. Money, ledger checks, terms, numbering, tax, PDF, e
 packages/db         Drizzle schema, migrations, row-level security policies, seed data.
 packages/mcp        The MCP server, generated from the action registry.
 packages/ui         Shared components and design tokens.
-packages/testing    Factories, the demo company and the ledger property suite.
+packages/testing    Factories and the ledger property suite. The demo company and its seed
+                    live in apps/web/scripts, beside the scripts that load it.
 ```
 
 An action owns authorization, the organization check, input validation, status changes, business policy and the message the user sees. It reads and writes our tables. A service owns one mechanic that two or more actions share. It takes everything as parameters, never reads the session, never touches our tables, and returns a structured result instead of throwing for failures it expects. Orchestration that many actions share and that writes tables, such as posting to the ledger, lives in shared actions under `packages/actions/shared`. The [execution plan](execution-plan.md#writing-code-with-code-structure) lists every service and its callers.

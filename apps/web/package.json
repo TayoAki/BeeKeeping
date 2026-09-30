@@ -6,6 +6,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "dev:demo": "node scripts/dev-demo.ts",
+    "evidence": "node e2e/evidence.ts",
+    "seed:demo": "node scripts/seed-demo.ts",
     "start": "next start",
     "typecheck": "next typegen && tsc",
     "test:e2e": "playwright test"

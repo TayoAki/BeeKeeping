@@ -47,7 +47,7 @@ export function PasswordSignIn({ next }: { next: string }) {
   }
 
   return (
-    <form onSubmit={submit} aria-labelledby="password-heading">
+    <form method="post" onSubmit={submit} aria-labelledby="password-heading">
       <h2 id="password-heading">With your password</h2>
       <label htmlFor="email">Email</label>
       <input
@@ -99,7 +99,7 @@ export function MagicLinkSignIn({ next }: { next: string }) {
   }
 
   return (
-    <form onSubmit={submit} aria-labelledby="link-heading">
+    <form method="post" onSubmit={submit} aria-labelledby="link-heading">
       <h2 id="link-heading">With a link by email</h2>
       <label htmlFor="link-email">Email</label>
       <input

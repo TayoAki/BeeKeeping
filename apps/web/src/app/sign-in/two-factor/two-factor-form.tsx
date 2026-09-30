@@ -33,7 +33,7 @@ export function TwoFactorForm({ next }: { next: string }) {
   }
 
   return (
-    <form onSubmit={submit}>
+    <form method="post" onSubmit={submit}>
       {backup ? (
         <>
           <label htmlFor="code">Backup code</label>

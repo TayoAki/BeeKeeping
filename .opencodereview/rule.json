@@ -82,7 +82,7 @@
     },
     {
       "path": "apps/web/e2e/**",
-      "rule": "BeeKeeping's end-to-end tests, run by Playwright against next dev on a fresh database. Check that:\n- Each test would fail if the behavior it names broke, and waits on what a person would see or do, never on fixed sleeps.\n- axe runs with the WCAG 2.2 A and AA tags and best practices, in both themes, on every page and on each part of the shell that opens.\n- Tests use demo company names and addresses only, and leave no database, login, process or file behind.\n- The server script never prints a secret or a database URL.",
+      "rule": "BeeKeeping's end-to-end tests, run by Playwright against next dev on a fresh database. Check that:\n- Each test would fail if the behavior it names broke, and waits on what a person would see or do, never on fixed sleeps.\n- axe runs with the WCAG 2.2 A and AA tags and best practices, in both themes, on every page and on each part of the shell that opens.\n- Tests use demo company names and addresses only, and leave no database, login, process or file behind.\n- The server script never prints a secret or a database URL.\n- The evidence helper (e2e/evidence.ts) and its flows write only to the task's folder, name the commit and branch they tested, record every check as passed, failed or untested with a reason, and sign in as demo people only.",
       "merge_system_rule": true
     },
     {
@@ -123,6 +123,11 @@
     {
       "path": "packages/testing/**",
       "rule": "BeeKeeping's test helpers: factories, the demo company and the ledger property suite. Check that:\n- Data comes from the demo company only. No real names, keys, bank numbers or customer data.\n- Anything that posts goes through postEntry, so balances come from the ledger.\n- Nothing depends on the current date without a fixed clock.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "apps/web/scripts/**",
+      "rule": "BeeKeeping's development and deploy scripts, run with plain Node. Check that:\n- No script prints or logs a secret, a password or a database URL that holds one.\n- The demo seed goes through Better Auth and the actions, changes nothing on a second run, and never runs against production. Anything it posts goes through postEntry, and nothing it loads depends on the current date without a fixed clock.\n- A script that starts a server checks its port and this checkout's next dev before it touches a database, and stops what it started.\n- Only demo company names and addresses appear.",
       "merge_system_rule": true
     },
     {

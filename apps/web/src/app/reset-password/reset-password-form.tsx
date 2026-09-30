@@ -50,7 +50,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           <Link href="/sign-in">Sign in</Link>
         </p>
       ) : (
-        <form onSubmit={submit}>
+        <form method="post" onSubmit={submit}>
           <label htmlFor="password">New password</label>
           <input
             id="password"

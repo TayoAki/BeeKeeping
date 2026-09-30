@@ -35,7 +35,7 @@ export function FinishSetUpForm({ options }: { options: CurrencyOption[] }) {
   }
 
   return (
-    <form onSubmit={submit} aria-labelledby="finish-heading">
+    <form method="post" onSubmit={submit} aria-labelledby="finish-heading">
       <h2 id="finish-heading">Finish setting up</h2>
       <CurrencyField options={options} />
       <FormError message={error} />

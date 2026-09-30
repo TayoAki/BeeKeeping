@@ -2,7 +2,13 @@
 // organization switcher, toasts and the theme.
 import { expect, test, type Page } from "@playwright/test";
 
-import { callAuth, password, signUpOwner, type SignedIn } from "./helpers.ts";
+import {
+  callAuth,
+  password,
+  signIn,
+  signUpOwner,
+  type SignedIn,
+} from "./helpers.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -281,10 +287,7 @@ test("the palette signs out, and only this browser", async ({ browser }) => {
   // A session of its own, so the one the other tests share survives.
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("/sign-in");
-  await page.locator("#email").fill(owner.email);
-  await page.locator("#password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signIn(page, { email: owner.email, password });
   await page.waitForURL((url) => url.pathname === "/");
   await openShell(page);
   await page.keyboard.press("Control+k");

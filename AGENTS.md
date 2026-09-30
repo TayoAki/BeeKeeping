@@ -129,6 +129,9 @@ command from the repo root.
 | `pnpm db:start` | Starts the throwaway Postgres on port 54320, with its files in `/tmp/beekeeping-postgres`. `pnpm db:stop` stops it for every checkout on the machine. |
 | `pnpm db:migrate` | Applies pending migrations to `MIGRATION_DATABASE_URL`, which logs in as the database owner. When it isn't set, migrates this checkout's development database on the throwaway Postgres and creates the app's local login. |
 | `pnpm -s db:url` | Prints the URL the app uses for this checkout's development database. Run `pnpm db:migrate` once first, then `export DATABASE_URL="$(pnpm -s db:url)"`. Without `-s`, pnpm's banner lands in the variable too. |
+| `pnpm dev:demo` | Runs the web app on the demo company at `http://localhost:3000`, or on `PORT`. It starts the throwaway Postgres, migrates this checkout's demo database, loads the demo company and starts `next dev` with the email outbox. `--fresh` starts from an empty demo database. |
+| `pnpm seed:demo` | Loads the demo company into `DATABASE_URL`'s database, after `pnpm db:migrate`, for staging and PR environments. It needs `DEMO_PASSWORD` and refuses Railway's production environment. A second run changes nothing but a password that `DEMO_PASSWORD` changed. |
+| `pnpm evidence <flow> --task <task>` | Runs a flow from `apps/web/e2e/flows`, such as `sign-in`, in Chromium, signed in as a demo person, and writes numbered screenshots, `walkthrough.webm` and `assertions.md` to `.artifacts/<task>/`, or to `.artifacts/<task>/<label>/` with `--label before` or `--label after`. It tests this checkout's `pnpm dev:demo` and refuses to run without it, unless `--url` or `EVIDENCE_URL` names another app, such as staging. For another app, `assertions.md` says it can't tell which commit that app runs. `--out` writes elsewhere. |
 
 A task is ready for review when `pnpm check`, `pnpm build` and
 `pnpm test:e2e` pass. CI runs the same steps on every PR and on pushes to
@@ -228,6 +231,26 @@ its value.
   (`/tmp/beekeeping-outbox` by default). Production needs both, and
   `EMAIL_FROM` must use a domain Resend has verified.
 
+The demo company:
+
+- `apps/web/scripts/demo-company.ts` defines it: Honeycomb Design
+  Studio (demo), a US design studio that keeps its books in USD, with
+  three people at honeycomb-demo.test: Avery Park, the owner, Blake Ortiz,
+  a bookkeeper, and Casey Moreno, a viewer. Every screenshot and video
+  shows it and nothing else. A task that adds data the demo should show
+  adds it to `seedDemoCompany` in `apps/web/scripts/seed-demo.ts`, which
+  must still change nothing when it runs twice, and posts through
+  `postEntry` like everything else.
+- The demo people sign in with `DEMO_PASSWORD`. Staging and PR
+  environments keep it in Railway's variables, and production never has
+  one. Locally, `pnpm dev:demo` makes one up the first time and keeps it,
+  with the app's secret, in `/tmp/beekeeping-demo/<demo database>.json`,
+  which only its owner can read. Nothing prints it.
+- Evidence for a task comes from a flow: a file in `apps/web/e2e/flows`
+  whose default export has a title and a `run` that uses `signIn`,
+  `testStart`, `assertion` (with `{ shot: true }` for a screenshot) and
+  `untested`. `sign-in.ts` is the example.
+
 How the workspace fits together:
 
 - `apps/web`, `apps/worker` and `packages/*` follow the layers in
@@ -266,8 +289,8 @@ How the workspace fits together:
   `pnpm install --frozen-lockfile` and installs the `ocr` CLI if it's
   missing, so the checks run straight away. Local sessions skip the hook.
 - Cloud sessions have no display. Use the headless path in
-  `evidence-driven-testing` and keep evidence in `.artifacts/<task-name>/`,
-  which is gitignored.
+  `evidence-driven-testing`: `pnpm dev:demo`, then `pnpm evidence`. Keep
+  evidence in `.artifacts/<task-name>/`, which is gitignored.
 - Chromium is preinstalled for Playwright. For `before-and-after` in a
   container, set `AGENT_BROWSER_ARGS="--no-sandbox"`.
 - Code review runs on open-code-review, the `ocr` command. If a session

@@ -8,13 +8,17 @@
 // script asks for every page first, and only then answers 200 on the
 // readiness port that Playwright waits for. However it ends, it stops next
 // dev and drops the database, its login and the outbox.
-import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
-import { createServer as createProbe } from "node:net";
 
 import { createAppDatabase } from "@beekeeping/db/testing/app-database";
+
+import {
+  checkBeforeStarting,
+  nextDevFolder,
+  startNextDev,
+} from "../scripts/dev-server.ts";
 
 const port = Number(process.env.E2E_PORT ?? 3190);
 const readyPort = port + 1;
@@ -37,82 +41,29 @@ const pages = [
   "/settings/audit",
 ];
 
-/** A next dev this checkout already runs, from Next.js's own lock file. */
-function runningDevServer(): { pid: number; port: unknown } | undefined {
-  let lock: { pid?: unknown; port?: unknown };
-  try {
-    lock = JSON.parse(readFileSync(".next/dev/lock", "utf8")) as typeof lock;
-  } catch {
-    return undefined;
-  }
-  if (typeof lock.pid !== "number") return undefined;
-  try {
-    process.kill(lock.pid, 0);
-  } catch (error) {
-    // EPERM means the process is there, run by someone else.
-    if ((error as { code?: string }).code !== "EPERM") return undefined;
-  }
-  return { pid: lock.pid, port: lock.port };
-}
-
-// next dev keeps its build in .next/dev and allows one server per
-// checkout. A next dev kept open here would lose its build below, and this
-// run couldn't start its own.
-const running = runningDevServer();
-if (running) {
-  console.error(
-    `next dev from this checkout is running on port ${String(running.port)} (process ${running.pid}). Stop it, then run the tests again.`,
-  );
-  process.exit(1);
-}
-
-/** Whether nothing listens on a port yet. */
-function portFree(candidate: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const probe = createProbe()
-      .once("error", () => resolve(false))
-      .once("listening", () => probe.close(() => resolve(true)))
-      .listen(candidate);
-  });
-}
-
-// Another process on either port would answer in place of this run's
-// servers, and the tests' sign-ups could land in someone else's database.
-for (const candidate of [port, readyPort]) {
-  if (!(await portFree(candidate))) {
-    console.error(
-      `Port ${candidate} is taken. Set E2E_PORT to a free port; a run also takes the port after it.`,
-    );
-    process.exit(1);
-  }
-}
+// A next dev kept open from this checkout would lose its build below. Another
+// process on either port would answer in place of this run's servers, and
+// the tests' sign-ups could land in someone else's database.
+await checkBeforeStarting(
+  [port, readyPort],
+  "Set E2E_PORT to a free port; a run also takes the port after it.",
+);
 
 // A dev cache left by another run can hold routes that moved.
-rmSync(".next/dev", { recursive: true, force: true });
+rmSync(nextDevFolder, { recursive: true, force: true });
 const database = await createAppDatabase();
 // Made once the database exists, so a run that can't reach Postgres
 // leaves no folder behind.
 rmSync(outbox, { recursive: true, force: true });
 mkdirSync(outbox, { recursive: true });
 
-// A Resend key in the shell would send the tests' email for real, and the
-// tests read theirs from the outbox.
-const { RESEND_API_KEY: _resendKey, ...inherited } = process.env;
-const server = spawn(
-  "./node_modules/.bin/next",
-  ["dev", "--port", String(port)],
-  {
-    stdio: "inherit",
-    env: {
-      ...inherited,
-      DATABASE_URL: database.appUrl,
-      BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
-      BETTER_AUTH_URL: `http://localhost:${port}`,
-      BEEKEEPING_OUTBOX_DIR: outbox,
-      NEXT_TELEMETRY_DISABLED: "1",
-    },
-  },
-);
+// The tests read their email from the outbox.
+const server = startNextDev({
+  port,
+  databaseUrl: database.appUrl,
+  secret: randomBytes(32).toString("hex"),
+  outbox,
+});
 
 let ready = false;
 const readiness = createServer((_request, response) => {

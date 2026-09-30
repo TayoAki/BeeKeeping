@@ -78,7 +78,11 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
 
   if (setup) {
     return (
-      <form onSubmit={confirm} aria-labelledby="two-factor-heading">
+      <form
+        method="post"
+        onSubmit={confirm}
+        aria-labelledby="two-factor-heading"
+      >
         <h2 id="two-factor-heading" ref={heading} tabIndex={-1}>
           Finish two-factor sign-in
         </h2>
@@ -118,6 +122,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
 
   return (
     <form
+      method="post"
       onSubmit={enabled ? turnOff : start}
       aria-labelledby="two-factor-heading"
     >
@@ -168,7 +173,7 @@ export function NameForm({ name }: { name: string }) {
   }
 
   return (
-    <form onSubmit={submit} aria-labelledby="name-heading">
+    <form method="post" onSubmit={submit} aria-labelledby="name-heading">
       <h2 id="name-heading">Your name</h2>
       <label htmlFor="name">Name</label>
       <input

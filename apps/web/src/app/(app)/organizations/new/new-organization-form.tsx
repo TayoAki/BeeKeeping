@@ -59,7 +59,7 @@ export function NewOrganizationForm({
   }
 
   return (
-    <form onSubmit={submit}>
+    <form method="post" onSubmit={submit}>
       <label htmlFor="name">Business name</label>
       <input
         id="name"

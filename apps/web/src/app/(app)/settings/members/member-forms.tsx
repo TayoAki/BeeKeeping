@@ -40,7 +40,7 @@ export function InviteForm() {
   }
 
   return (
-    <form onSubmit={submit} aria-labelledby="invite-heading">
+    <form method="post" onSubmit={submit} aria-labelledby="invite-heading">
       <h2 id="invite-heading">Invite someone</h2>
       <label htmlFor="email">Email</label>
       <input id="email" name="email" type="email" autoComplete="off" required />

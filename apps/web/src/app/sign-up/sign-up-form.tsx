@@ -53,7 +53,7 @@ export function SignUpForm({ next }: { next: string }) {
     <>
       {message}
       {sentTo ? null : (
-        <form onSubmit={submit} aria-describedby="sign-up-error">
+        <form method="post" onSubmit={submit} aria-describedby="sign-up-error">
           <label htmlFor="name">Your name</label>
           <input
             id="name"

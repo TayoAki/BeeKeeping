@@ -24,6 +24,8 @@ import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
+import pg from "pg";
+
 const port = Number(process.env.BEEKEEPING_PG_PORT ?? 54320);
 const home = process.env.BEEKEEPING_PG_DIR ?? "/tmp/beekeeping-postgres";
 const dataDir = join(home, "data");
@@ -40,24 +42,105 @@ export const localAdminUrl = `postgres://postgres@127.0.0.1:${port}/postgres`;
  */
 export const localAppLogin = "beekeeping_web";
 
+/** A short hash of this checkout's path, so each worktree names its own. */
+function checkoutHash(): string {
+  const checkout = resolve(import.meta.dirname, "..", "..", "..");
+  return createHash("sha256").update(checkout).digest("hex").slice(0, 8);
+}
+
 /**
  * This checkout's development database, such as beekeeping_dev_3f9a0c1d. Each
  * worktree has its own, so migrations on one branch never land in another's.
  */
 export function localDevelopmentDatabase(): string {
-  const checkout = resolve(import.meta.dirname, "..", "..", "..");
-  const hash = createHash("sha256").update(checkout).digest("hex").slice(0, 8);
-  return `beekeeping_dev_${hash}`;
+  return `beekeeping_dev_${checkoutHash()}`;
 }
 
-/** This checkout's development database, as the owner, for migrations. */
-export function localDevelopmentOwnerUrl(): string {
-  return `postgres://postgres@127.0.0.1:${port}/${localDevelopmentDatabase()}`;
+/**
+ * This checkout's demo database, such as beekeeping_demo_3f9a0c1d, which
+ * `pnpm dev:demo` loads the demo company into. It stays apart from the
+ * development database, so starting it fresh loses nobody's work.
+ */
+export function localDemoDatabase(): string {
+  return `beekeeping_demo_${checkoutHash()}`;
+}
+
+/** A database on the throwaway server, as the owner or as the app. */
+function localDatabaseUrl(database: string, as: "owner" | "app"): string {
+  const user = as === "owner" ? "postgres" : localAppLogin;
+  return `postgres://${user}@127.0.0.1:${port}/${database}`;
 }
 
 /** This checkout's development database, as the app logs in to it. */
 export function localDevelopmentAppUrl(): string {
-  return `postgres://${localAppLogin}@127.0.0.1:${port}/${localDevelopmentDatabase()}`;
+  return localDatabaseUrl(localDevelopmentDatabase(), "app");
+}
+
+async function asAdmin(work: (client: pg.Client) => Promise<void>) {
+  const client = new pg.Client({ connectionString: localAdminUrl });
+  await client.connect();
+  try {
+    await work(client);
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * The app's login on the throwaway server: it can log in and switch to
+ * beekeeping_app or beekeeping_auth, and nothing more. Roles belong to the
+ * whole server, and another checkout may be making this one at the same
+ * moment.
+ */
+async function ensureLocalAppLogin(): Promise<void> {
+  await asAdmin(async (client) => {
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${localAppLogin}') THEN
+          BEGIN
+            CREATE ROLE ${localAppLogin} LOGIN NOINHERIT;
+          EXCEPTION
+            WHEN duplicate_object OR unique_violation THEN NULL;
+          END;
+        END IF;
+      END
+      $$`);
+    await client.query(
+      `grant beekeeping_app, beekeeping_auth to ${localAppLogin}`,
+    );
+  });
+}
+
+/**
+ * Makes a database on the throwaway server ready for the app and answers
+ * the URL the app logs in with. It starts the server if needed, drops the
+ * database first when fresh, creates it when it's missing, migrates it as
+ * the owner, then lets the app's login in. That grant names roles the
+ * migrations create, so it comes last.
+ */
+export async function prepareLocalDatabase(
+  database: string,
+  { fresh = false }: { fresh?: boolean } = {},
+): Promise<string> {
+  await startLocalPostgres();
+  await asAdmin(async (client) => {
+    if (fresh) {
+      await client.query(`drop database if exists "${database}" with (force)`);
+    }
+    const found = await client.query(
+      "select 1 from pg_database where datname = $1",
+      [database],
+    );
+    if (found.rowCount === 0) {
+      await client.query(`create database "${database}"`);
+    }
+  });
+  // Loaded only here, so start, stop and url stay quick.
+  const { migrateDatabase } = await import("../src/migrate.ts");
+  await migrateDatabase(localDatabaseUrl(database, "owner"));
+  await ensureLocalAppLogin();
+  return localDatabaseUrl(database, "app");
 }
 
 /** Version folders as numbers, so 16 wins over 9.6 and our pinned 16 first. */
