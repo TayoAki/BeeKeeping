@@ -29,9 +29,7 @@ export default async function AppLayout({
       <AppShell
         organizations={organizations}
         activeId={membership?.organizationId}
-        canManageMembers={
-          membership ? roleAtLeast(membership.role, "admin") : false
-        }
+        isAdmin={membership ? roleAtLeast(membership.role, "admin") : false}
         theme={parseTheme(cookieStore.get(themeCookie)?.value)}
       >
         {children}

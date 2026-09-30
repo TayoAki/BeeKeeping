@@ -34,6 +34,7 @@ const pages = [
   "/organizations/new",
   "/settings/account",
   "/settings/members",
+  "/settings/audit",
 ];
 
 /** A next dev this checkout already runs, from Next.js's own lock file. */

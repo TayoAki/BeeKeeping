@@ -79,12 +79,37 @@ for (const theme of ["light", "dark"] as const) {
         ["/", business],
         ["/settings/members", "Members"],
         ["/settings/account", "Your account"],
+        ["/settings/audit", "Audit log"],
         ["/organizations/new", "Set up your business"],
         ["/invitations/none", "This invitation isn't available"],
       ] as const) {
         await page.goto(path);
         await expectHeading(page, heading);
         await expectAccessible(page, `${theme} signed in ${path}`);
+      }
+      // The audit log names the owner who set the home currency.
+      await page.goto("/settings/audit");
+      await expect(
+        page
+          .getByRole("row")
+          .filter({ hasText: "Organization settings, created" }),
+      ).toContainText(owner.name);
+      // At a phone's width a table scrolls in its own box, which a keyboard
+      // can reach, and the page itself doesn't scroll sideways.
+      await page.setViewportSize({ width: 390, height: 800 });
+      for (const [path, heading] of [
+        ["/settings/audit", "Audit log"],
+        ["/settings/members", "Members"],
+      ] as const) {
+        await page.goto(path);
+        await expectHeading(page, heading);
+        await expectAccessible(page, `${theme} signed in ${path} at 390px`);
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+          `${path} scrolls sideways`,
+        ).toBe(true);
       }
       await context.close();
     });
@@ -143,6 +168,12 @@ for (const theme of ["light", "dark"] as const) {
       };
       const { context, page } = await ownerPage(browser, theme);
       await page.goto("/");
+      // The shell offers the admin pages to the owner, and below to no
+      // bookkeeper. The navigation and the palette share one list.
+      const ownerNav = page.getByRole("navigation", { name: "Main" });
+      for (const place of ["Members", "Audit log"]) {
+        await expect(ownerNav.getByRole("link", { name: place })).toBeVisible();
+      }
       await callAuth(page, "/organization/invite-member", {
         email: invitee.email,
         role: "bookkeeper",
@@ -158,12 +189,22 @@ for (const theme of ["light", "dark"] as const) {
       await expectAccessible(page2, `${theme} invitation to join`);
       await page2.getByRole("button", { name: "Accept and join" }).click();
       await expectHeading(page2, business);
+      const nav = page2.getByRole("navigation", { name: "Main" });
+      await expect(
+        nav.getByRole("link", { name: "Your account" }),
+      ).toBeVisible();
+      for (const place of ["Members", "Audit log"]) {
+        await expect(nav.getByRole("link", { name: place })).toHaveCount(0);
+      }
 
       const refused = await page2.goto("/settings/members");
       expect(refused?.status()).toBe(403);
       await expectHeading(page2, "You can't open this page");
       await expect(page2).toHaveTitle("Not allowed · BeeKeeping");
       await expectAccessible(page2, `${theme} members page refused`);
+      const log = await page2.goto("/settings/audit");
+      expect(log?.status()).toBe(403);
+      await expect(page2).toHaveTitle("Not allowed · BeeKeeping");
       await joining.close();
     });
   });

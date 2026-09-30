@@ -76,6 +76,20 @@ const cases: Record<ActionName, (a: Principal, b: Principal) => Promise<void>> =
         await invokeAction(app.db, b, "get_organization_settings", {}),
       ).toMatchObject({ ok: false, reason: "not_found" });
     },
+    list_audit_events: async (a, b) => {
+      // Setting A's currency left an event in A's log, and none in B's.
+      expect(
+        await invokeAction(app.db, a, "list_audit_events", {}),
+      ).toMatchObject({
+        ok: true,
+        events: [{ tableName: "organization_settings" }],
+      });
+      expect(await invokeAction(app.db, b, "list_audit_events", {})).toEqual({
+        ok: true,
+        events: [],
+        tables: [],
+      });
+    },
     set_up_organization: async (a, b) => {
       const outcome = await invokeAction(app.db, b, "set_up_organization", {
         homeCurrency: "EUR",
@@ -152,8 +166,16 @@ describe("every action, called by another organization's member", () => {
 });
 
 describe("each action's own filter, where row-level security doesn't apply", () => {
-  it("get_organization_settings: not found", async () => {
-    const { b } = await twoOrganizations();
+  it("get_organization_settings and list_audit_events: nothing of A's", async () => {
+    const { a, b } = await twoOrganizations();
+    // B's one table sorts between A's organization_settings and vault, so a
+    // missing filter at either step of the table list adds one of A's.
+    await asOwner(
+      database.url,
+      `insert into audit_events (org_id, table_name, record_id, action, changes)
+         values ($1, 'payments', 'b1', 'insert', '{}'), ($2, 'vault', 'a1', 'insert', '{}')`,
+      [b.orgId, a.orgId],
+    );
     // The owner skips row-level security, so only the action's own filter
     // keeps A's row from B. One connection, so the role change sticks.
     const owner = openDatabase(database.url, { max: 1 });
@@ -162,6 +184,13 @@ describe("each action's own filter, where row-level security doesn't apply", () 
       expect(
         await invokeAction(owner.db, b, "get_organization_settings", {}),
       ).toMatchObject({ ok: false, reason: "not_found" });
+      expect(
+        await invokeAction(owner.db, b, "list_audit_events", {}),
+      ).toMatchObject({
+        ok: true,
+        events: [{ recordId: "b1" }],
+        tables: ["payments"],
+      });
     } finally {
       await owner.close();
     }

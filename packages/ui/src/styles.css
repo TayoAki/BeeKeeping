@@ -150,6 +150,44 @@ td {
   padding: 0.5rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
+  vertical-align: top;
+}
+
+/* An address breaks anywhere rather than widen its column. Other words stay
+   whole. */
+.address {
+  overflow-wrap: anywhere;
+}
+
+/* A table wider than the screen scrolls inside its own box, not the page.
+   The margin keeps the box's focus ring off the control above it. */
+.table-scroll {
+  margin-top: 0.5rem;
+  overflow-x: auto;
+}
+
+/* A caption starts where its box does, so it stays in view when the table
+   is wider than the box. */
+caption {
+  text-align: start;
+}
+
+/* Form fields side by side where there's room, such as filters. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0 1rem;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* A list read as plain lines, such as the fields in an audit event. */
+ul.plain {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 kbd {

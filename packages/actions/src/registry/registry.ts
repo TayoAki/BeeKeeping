@@ -7,6 +7,7 @@ import type { z } from "zod";
 
 import { roleAtLeast } from "../access/roles.ts";
 import { runAction, type Principal } from "../context.ts";
+import { listAuditEvents } from "../audit/events.ts";
 import {
   getOrganizationSettings,
   setUpOrganization,
@@ -14,7 +15,11 @@ import {
 import type { ActionDefinition, Message, SuccessOutput } from "./define.ts";
 
 /** Every action. The doors offer these and nothing else. */
-export const actions = [getOrganizationSettings, setUpOrganization] as const;
+export const actions = [
+  getOrganizationSettings,
+  listAuditEvents,
+  setUpOrganization,
+] as const;
 
 type Registered = (typeof actions)[number];
 export type ActionName = Registered["name"];

@@ -178,6 +178,15 @@ Databases:
   holds an organization's data gets an `org_id` column and
   `orgIsolation(...)` from `packages/db/src/schema/tenancy.ts`, so
   `beekeeping_app` sees only the organization its transaction acts for.
+- A table with `org_id` also gets an audit trigger in its migration, which
+  names the row's key column and the fields the log may copy:
+  `CREATE TRIGGER <table>_audit AFTER INSERT OR UPDATE OR DELETE ON <table> FOR EACH ROW EXECUTE FUNCTION audit_row('<key>', '<field>', ...);`.
+  List no secret field: a field the trigger doesn't list never enters the
+  log, and an update of such fields alone leaves no event.
+  `packages/db/src/audit.test.ts` fails for a table with `org_id` and no
+  trigger. The app reads its organization's events with the
+  `list_audit_events` action and can't change them, and a trigger refuses
+  every change to the log, the owner's included.
 - A new sign-in table gets `authOnly(...)` instead. drizzle-kit writes no
   grants, and migration 0000 gives every new table to `beekeeping_app`, so
   its migration also needs `REVOKE ALL ON <table> FROM beekeeping_app;` and

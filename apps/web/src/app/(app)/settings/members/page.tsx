@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { roleAtLeast } from "@beekeeping/actions";
+import { TableScroll } from "@beekeeping/ui";
 import { headers } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
 
@@ -33,9 +34,17 @@ export default async function MembersPage() {
   // managing them away from bookkeepers and viewers.
   if (!roleAtLeast(membership.role, "admin")) forbidden();
 
-  const organization = await getAuth().api.getFullOrganization({
-    headers: await headers(),
-  });
+  // The organization the role above came from, even if the person switches
+  // in another tab meanwhile.
+  const organization = await getAuth()
+    .api.getFullOrganization({
+      headers: await headers(),
+      query: { organizationId: membership.organizationId },
+    })
+    .catch(() => {
+      // As in session.ts: the error carries the query and its parameters.
+      throw new Error("We couldn't read the organization's members.");
+    });
   // Better Auth leaves an expired invitation pending, so the date decides.
   const now = new Date();
   const open = (organization?.invitations ?? []).filter(
@@ -47,36 +56,38 @@ export default async function MembersPage() {
   return (
     <>
       <h1>Members</h1>
-      <table>
-        <caption className="hint">Everyone who can open these books.</caption>
-        <thead>
-          <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Email</th>
-            <th scope="col">Role</th>
-            <th scope="col">
-              <span className="hint">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {(organization?.members ?? []).map((member) => (
-            <tr key={member.id}>
-              <td>{member.user.name}</td>
-              <td>{member.user.email}</td>
-              <td>{member.role}</td>
-              <td>
-                {member.role === "owner" ? null : (
-                  <RemoveMemberButton
-                    memberId={member.id}
-                    name={member.user.name}
-                  />
-                )}
-              </td>
+      <TableScroll label="Members">
+        <table>
+          <caption className="hint">Everyone who can open these books.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Email</th>
+              <th scope="col">Role</th>
+              <th scope="col">
+                <span className="hint">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(organization?.members ?? []).map((member) => (
+              <tr key={member.id}>
+                <td>{member.user.name}</td>
+                <td className="address">{member.user.email}</td>
+                <td>{member.role}</td>
+                <td>
+                  {member.role === "owner" ? null : (
+                    <RemoveMemberButton
+                      memberId={member.id}
+                      name={member.user.name}
+                    />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
 
       <h2>Invitations waiting for an answer</h2>
       {pending.length === 0 ? (

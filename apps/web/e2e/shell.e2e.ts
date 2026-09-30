@@ -138,8 +138,8 @@ test("arrow keys move through the commands, and the search box keeps focus", asy
 test("the highlighted command stays in view as the keys move through a long list", async ({
   browser,
 }) => {
-  // Someone with five organizations, whose palette lists twelve commands,
-  // more than the list shows at once.
+  // Someone with five organizations, whose palette lists thirteen
+  // commands, more than the list shows at once.
   const context = await browser.newContext();
   const page = await context.newPage();
   await signUpOwner(page, {
@@ -157,7 +157,7 @@ test("the highlighted command stays in view as the keys move through a long list
   await openShell(page);
   await page.keyboard.press("Control+k");
   const search = page.getByRole("combobox", { name: "Search commands" });
-  await expect(page.getByRole("option")).toHaveCount(12);
+  await expect(page.getByRole("option")).toHaveCount(13);
   // Nine-tenths of a command in view is all of it but a rounded pixel. With
   // nothing scrolling it, the last command had none in view.
   const highlighted = async () =>
@@ -170,7 +170,7 @@ test("the highlighted command stays in view as the keys move through a long list
   await page.keyboard.press("Home");
   await expect(await highlighted()).toHaveText(/Home/);
   await expect(await highlighted()).toBeInViewport({ ratio: 0.9 });
-  for (let step = 0; step < 11; step += 1) {
+  for (let step = 0; step < 12; step += 1) {
     await page.keyboard.press("ArrowDown");
     await expect(await highlighted()).toBeInViewport({ ratio: 0.9 });
   }

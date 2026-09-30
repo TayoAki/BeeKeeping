@@ -15,6 +15,7 @@ export {
   watchTheme,
   type Theme,
 } from "./theme.ts";
+export { TableScroll } from "./table-scroll.tsx";
 export { ThemeButton } from "./theme-button.tsx";
 export {
   ToastProvider,

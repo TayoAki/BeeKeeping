@@ -131,13 +131,14 @@ function OrganizationSwitcher({
 export function AppShell({
   organizations,
   activeId,
-  canManageMembers,
+  isAdmin,
   theme,
   children,
 }: {
   organizations: readonly Organization[];
   activeId: string | undefined;
-  canManageMembers: boolean;
+  /** Admins and owners get the members page and the audit log. */
+  isAdmin: boolean;
   theme: Theme | undefined;
   children: ReactNode;
 }) {
@@ -160,12 +161,15 @@ export function AppShell({
   const places = useMemo<Place[]>(
     () => [
       { href: "/", label: "Home" },
-      ...(canManageMembers
-        ? [{ href: "/settings/members" as Route, label: "Members" }]
+      ...(isAdmin
+        ? [
+            { href: "/settings/members" as Route, label: "Members" },
+            { href: "/settings/audit" as Route, label: "Audit log" },
+          ]
         : []),
       { href: "/settings/account", label: "Your account" },
     ],
-    [canManageMembers],
+    [isAdmin],
   );
 
   const switchTo = useCallback(
